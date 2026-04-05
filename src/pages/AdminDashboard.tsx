@@ -54,10 +54,10 @@ const AdminDashboard: React.FC = () => {
   ];
 
   const stats = [
-    { label: 'Products', value: products.length.toString(), change: '+2 this cycle', icon: Package, insight: 'Catalog coverage is now shared with the storefront through the API.' },
-    { label: 'Featured', value: featuredProducts.length.toString(), change: 'Homepage ready', icon: Star, insight: 'Featured slots sync directly with the storefront home page.' },
-    { label: 'New arrivals', value: newArrivals.length.toString(), change: 'Fresh inventory', icon: TrendingUp, insight: 'New items are instantly reflected in storefront merchandising.' },
-    { label: 'Analytics', value: 'Live', change: 'Backend driven', icon: Brain, insight: 'ML-friendly metrics now come from the FastAPI backend.' },
+    { label: 'Products', value: products.length.toString(), change: '+2 this cycle', icon: Package, insight: 'Catalog coverage is now shared with the storefront through the API.', targetTab: 'products' },
+    { label: 'Featured', value: featuredProducts.length.toString(), change: 'Homepage ready', icon: Star, insight: 'Featured slots sync directly with the storefront home page.', targetTab: 'products' },
+    { label: 'New arrivals', value: newArrivals.length.toString(), change: 'Fresh inventory', icon: TrendingUp, insight: 'New items are instantly reflected in storefront merchandising.', targetTab: 'products' },
+    { label: 'Analytics', value: 'Live', change: 'Backend driven', icon: Brain, insight: 'ML-friendly metrics now come from the FastAPI backend.', targetTab: 'analytics' },
   ];
 
   const handleTabChange = (tabId: string) => {
@@ -72,7 +72,12 @@ const AdminDashboard: React.FC = () => {
           <div className="space-y-6">
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {stats.map((stat) => (
-                <div key={stat.label} className="glass-panel flex h-full flex-col rounded-[28px] p-6 xl:p-7">
+                <button
+                  key={stat.label}
+                  type="button"
+                  onClick={() => handleTabChange(stat.targetTab)}
+                  className="glass-panel flex h-full flex-col rounded-[28px] p-6 text-left transition hover:-translate-y-1 hover:shadow-[0_26px_60px_-36px_rgba(15,23,42,0.5)] xl:p-7"
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950">
                       <stat.icon className="h-5 w-5" />
@@ -84,7 +89,7 @@ const AdminDashboard: React.FC = () => {
                     <p className="text-3xl font-bold text-slate-950 dark:text-slate-50">{stat.value}</p>
                     <p className="text-sm leading-7 text-slate-600 dark:text-slate-400">{stat.insight}</p>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 

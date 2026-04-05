@@ -541,54 +541,56 @@ const AnalyticsCharts: React.FC = () => {
       )}
 
       {!loading && !error && dashboard && activeTab === 'catalog' && (
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <section className="glass-panel rounded-[28px] p-6">
-            <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Category performance and quality</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Sales, growth, and ML quality signals are blended into a ranking view designed for fast merchandising decisions.
-            </p>
-            <div className="mt-5 space-y-3">
-              {categoryPerformance.map((item) => {
-                const salesWidth = latestRevenuePoint ? Math.max(12, (item.sales / latestRevenuePoint.predicted) * 100) : 12;
-                return (
-                  <div key={item.category} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-950 dark:text-slate-50">{item.category}</p>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                          {formatCurrency(item.sales)} estimated sales with {item.growth}% synthetic growth.
-                        </p>
+        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+          <div className="grid gap-6">
+            <section className="glass-panel rounded-[28px] p-6">
+              <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Category performance and quality</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                Sales, growth, and ML quality signals are blended into a ranking view designed for fast merchandising decisions.
+              </p>
+              <div className="mt-5 space-y-3">
+                {categoryPerformance.map((item) => {
+                  const salesWidth = latestRevenuePoint ? Math.max(12, (item.sales / latestRevenuePoint.predicted) * 100) : 12;
+                  return (
+                    <div key={item.category} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-950 dark:text-slate-50">{item.category}</p>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            {formatCurrency(item.sales)} estimated sales with {item.growth}% synthetic growth.
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/35 dark:text-amber-300">
+                          ML score {item.mlScore}
+                        </span>
                       </div>
-                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/35 dark:text-amber-300">
-                        ML score {item.mlScore}
-                      </span>
-                    </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div>
-                        <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                          <span>Sales weight</span>
-                          <span>{formatCompactNumber(item.sales)}</span>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                            <span>Sales weight</span>
+                            <span>{formatCompactNumber(item.sales)}</span>
+                          </div>
+                          <div className="h-3 rounded-full bg-slate-200/80 dark:bg-slate-800">
+                            <div className="h-3 rounded-full bg-slate-950 dark:bg-cyan-400" style={{ width: `${Math.min(100, salesWidth)}%` }} />
+                          </div>
                         </div>
-                        <div className="h-3 rounded-full bg-slate-200/80 dark:bg-slate-800">
-                          <div className="h-3 rounded-full bg-slate-950 dark:bg-cyan-400" style={{ width: `${Math.min(100, salesWidth)}%` }} />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                          <span>Quality score</span>
-                          <span>{item.mlScore}/100</span>
-                        </div>
-                        <div className="h-3 rounded-full bg-slate-200/80 dark:bg-slate-800">
-                          <div className="h-3 rounded-full bg-orange-500" style={{ width: `${Math.min(100, item.mlScore)}%` }} />
+                        <div>
+                          <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                            <span>Quality score</span>
+                            <span>{item.mlScore}/100</span>
+                          </div>
+                          <div className="h-3 rounded-full bg-slate-200/80 dark:bg-slate-800">
+                            <div className="h-3 rounded-full bg-orange-500" style={{ width: `${Math.min(100, item.mlScore)}%` }} />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
 
           <section className="grid gap-6">
             <article className="glass-panel rounded-[28px] p-6">
@@ -653,16 +655,18 @@ const AnalyticsCharts: React.FC = () => {
       )}
 
       {!loading && !error && dashboard && activeTab === 'customers' && (
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <section className="glass-panel rounded-[28px] p-6">
-            <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Customer segment distribution</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-              Lifecycle buckets make the retention story easier to act on, even before a full clustering model lands.
-            </p>
-            <div className="mt-6">
-              <SegmentDonut segments={segmentDistribution} />
-            </div>
-          </section>
+        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+          <div className="grid gap-6">
+            <section className="glass-panel rounded-[28px] p-6">
+              <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Customer segment distribution</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                Lifecycle buckets make the retention story easier to act on, even before a full clustering model lands.
+              </p>
+              <div className="mt-6">
+                <SegmentDonut segments={segmentDistribution} />
+              </div>
+            </section>
+          </div>
 
           <section className="grid gap-6">
             <article className="glass-panel rounded-[28px] p-6">

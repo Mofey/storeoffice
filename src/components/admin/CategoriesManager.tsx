@@ -17,6 +17,7 @@ const CategoriesManager: React.FC = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(3);
 
   const productCounts = useMemo(() => {
     return products.reduce<Record<string, number>>((accumulator, product) => {
@@ -29,6 +30,9 @@ const CategoriesManager: React.FC = () => {
     setDraft(emptyCategory);
     setEditingId(null);
   };
+
+  const visibleCategories = categories.slice(0, visibleCount);
+  const hasMoreCategories = visibleCount < categories.length;
 
   const startEdit = (category: Category) => {
     setDraft(category);
@@ -175,7 +179,7 @@ const CategoriesManager: React.FC = () => {
         </div>
 
         <div className="mt-6 space-y-3">
-          {categories.map((category) => (
+          {visibleCategories.map((category) => (
             <div key={category.id} className="rounded-[24px] border border-slate-200/80 bg-white/80 p-4 dark:border-slate-700/80 dark:bg-slate-900/60">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -206,6 +210,12 @@ const CategoriesManager: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {hasMoreCategories && (
+          <button type="button" onClick={() => setVisibleCount((count) => count + 3)} className="secondary-button mt-6">
+            Load 3 more
+          </button>
+        )}
       </section>
     </div>
   );
