@@ -1,0 +1,139 @@
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { apiRequest } from '../lib/api';
+import { useAuth } from './AuthContext';
+
+export interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+  description: string;
+  rating: number;
+  reviews: number;
+  inStock: boolean;
+  isFeatured?: boolean;
+  isNewArrival?: boolean;
+}
+
+interface ProductContextType {
+  products: Product[];
+  categories: Category[];
+  featuredProducts: Product[];
+  newArrivals: Product[];
+  refreshProducts: () => Promise<void>;
+  updateProduct: (id: number, updates: Partial<Product>) => Promise<void>;
+  deleteProduct: (id: number) => Promise<void>;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+  addCategory: (category: Category) => Promise<void>;
+  updateCategory: (id: string, updates: Partial<Category>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
+}
+
+const ProductContext = createContext<ProductContextType | undefined>(undefined);
+
+export const useProducts = () => {
+  const context = useContext(ProductContext);
+  if (!context) {
+    throw new Error('useProducts must be used within a ProductProvider');
+  }
+  return context;
+};
+
+export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { token } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  const refreshProducts = async () => {
+    const [productsResponse, categoriesResponse] = await Promise.all([
+      apiRequest<Product[]>('/products'),
+      apiRequest<Category[]>('/categories'),
+    ]);
+    setProducts(productsResponse);
+    setCategories(categoriesResponse);
+  };
+
+  useEffect(() => {
+    void refreshProducts();
+  }, []);
+
+  const addProduct = async (product: Omit<Product, 'id'>) => {
+    await apiRequest<Product>('/products', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(product),
+    });
+    await refreshProducts();
+  };
+
+  const updateProduct = async (id: number, updates: Partial<Product>) => {
+    await apiRequest<Product>(`/products/${id}`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify(updates),
+    });
+    await refreshProducts();
+  };
+
+  const deleteProduct = async (id: number) => {
+    await apiRequest<{ status: string }>(`/products/${id}`, {
+      method: 'DELETE',
+      token,
+    });
+    await refreshProducts();
+  };
+
+  const addCategory = async (category: Category) => {
+    await apiRequest<Category>('/categories', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(category),
+    });
+    await refreshProducts();
+  };
+
+  const updateCategory = async (id: string, updates: Partial<Category>) => {
+    await apiRequest<Category>(`/categories/${id}`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify(updates),
+    });
+    await refreshProducts();
+  };
+
+  const deleteCategory = async (id: string) => {
+    await apiRequest<{ status: string }>(`/categories/${id}`, {
+      method: 'DELETE',
+      token,
+    });
+    await refreshProducts();
+  };
+
+  return (
+    <ProductContext.Provider
+      value={{
+        products,
+        categories,
+        featuredProducts: products.filter((product) => product.isFeatured),
+        newArrivals: products.filter((product) => product.isNewArrival),
+        refreshProducts,
+        updateProduct,
+        deleteProduct,
+        addProduct,
+        addCategory,
+        updateCategory,
+        deleteCategory,
+      }}
+    >
+      {children}
+    </ProductContext.Provider>
+  );
+};

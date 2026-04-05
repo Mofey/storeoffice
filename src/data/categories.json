@@ -1,0 +1,32 @@
+[
+  {
+    "id": "phones",
+    "name": "Phones",
+    "icon": "📱",
+    "description": "Latest smartphones and mobile devices"
+  },
+  {
+    "id": "laptops",
+    "name": "Laptops",
+    "icon": "💻",
+    "description": "High-performance laptops and computers"
+  },
+  {
+    "id": "shirts",
+    "name": "Shirts",
+    "icon": "👕",
+    "description": "Premium clothing and apparel"
+  },
+  {
+    "id": "books",
+    "name": "Books",
+    "icon": "📚",
+    "description": "Educational and entertainment books"
+  },
+  {
+    "id": "food",
+    "name": "Food & Delicacies",
+    "icon": "🍔",
+    "description": "Gourmet food and delicious treats"
+  }
+]
