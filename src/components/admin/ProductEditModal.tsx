@@ -11,6 +11,7 @@ interface Product {
   description: string;
   rating: number;
   reviews: number;
+  stockQuantity: number;
   inStock: boolean;
   isFeatured?: boolean;
   isNewArrival?: boolean;
@@ -20,7 +21,7 @@ interface ProductEditModalProps {
   product: Product;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (id: number, updates: Partial<Product>) => void;
+  onSave: (id: number, updates: Partial<Product>) => Promise<Product>;
 }
 
 const ProductEditModal: React.FC<ProductEditModalProps> = ({
@@ -32,18 +33,34 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
   const { categories } = useProducts();
   const [formData, setFormData] = useState(product);
   const [imageUrl, setImageUrl] = useState(product.image);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     setFormData(product);
     setImageUrl(product.image);
+    setIsSaving(false);
+    setIsSaved(false);
   }, [product]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(product.id, { ...formData, image: imageUrl });
-    onClose();
+    if (isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onSave(product.id, { ...formData, image: imageUrl, inStock: formData.stockQuantity > 0 });
+      setIsSaved(true);
+      window.setTimeout(() => {
+        onClose();
+      }, 500);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleImageUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,6 +198,21 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 min="0"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Stock Quantity
+              </label>
+              <input
+                type="number"
+                name="stockQuantity"
+                value={formData.stockQuantity ?? 0}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+                min="0"
+                step="1"
+              />
+            </div>
           </div>
 
           <div>
@@ -231,12 +263,13 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
                 type="checkbox"
                 id="inStock"
                 name="inStock"
-                checked={formData.inStock}
+                checked={formData.stockQuantity > 0}
+                disabled
                 onChange={handleCheckboxChange}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="inStock" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                In Stock
+                In Stock (auto)
               </label>
             </div>
 
@@ -273,16 +306,18 @@ const ProductEditModal: React.FC<ProductEditModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              disabled={isSaving || isSaved}
+              className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center space-x-2 transition-colors"
+              disabled={isSaving || isSaved}
+              className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300"
             >
               <Save className="w-4 h-4" />
-              <span>Save Changes</span>
+              <span>{isSaved ? 'Saved' : isSaving ? 'Saving...' : 'Save Changes'}</span>
             </button>
           </div>
         </form>

@@ -28,6 +28,7 @@ const OrdersManager: React.FC = () => {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [visibleOrderCount, setVisibleOrderCount] = useState(3);
 
   const loadOrders = async () => {
     if (!token) {
@@ -49,6 +50,10 @@ const OrdersManager: React.FC = () => {
   useEffect(() => {
     void loadOrders();
   }, [token]);
+
+  useEffect(() => {
+    setVisibleOrderCount(3);
+  }, [orders]);
 
   const handleCompleteOrder = async (orderId?: string) => {
     if (!token || !orderId) {
@@ -90,7 +95,7 @@ const OrdersManager: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((order) => (
+          {orders.slice(0, visibleOrderCount).map((order) => (
             <article key={order.id ?? `${order.userId}-${order.createdAt}`} className="glass-panel rounded-[28px] p-6">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
@@ -133,6 +138,11 @@ const OrdersManager: React.FC = () => {
               </div>
             </article>
           ))}
+          {visibleOrderCount < orders.length && (
+            <button type="button" onClick={() => setVisibleOrderCount((count) => count + 3)} className="secondary-button">
+              Load 3 more
+            </button>
+          )}
         </div>
       )}
     </div>

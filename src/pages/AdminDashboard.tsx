@@ -13,19 +13,58 @@ import UsersManager from '../components/admin/UsersManager';
 import { useAuth } from '../contexts/AuthContext';
 import { type Product, useProducts } from '../contexts/ProductContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { apiRequest } from '../lib/api';
 
 const AdminDashboard: React.FC = () => {
-  const { user, logout, isHydrated } = useAuth();
+  const { user, token, logout, isHydrated } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const { products, featuredProducts, newArrivals, updateProduct, deleteProduct } = useProducts();
   const [activeTab, setActiveTab] = useState('overview');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [orderCount, setOrderCount] = useState(0);
+  const [newsletterCount, setNewsletterCount] = useState(0);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [activeTab]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOverviewCounts = async () => {
+      if (!token) {
+        return;
+      }
+
+      try {
+        const [orders, subscribers] = await Promise.all([
+          apiRequest<Array<unknown>>('/admin/orders', { token }),
+          apiRequest<Array<unknown>>('/admin/newsletter-subscribers', { token }),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setOrderCount(orders.length);
+        setNewsletterCount(subscribers.length);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+        setOrderCount(0);
+        setNewsletterCount(0);
+      }
+    };
+
+    void loadOverviewCounts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
 
   if (!isHydrated) {
     return (
@@ -55,8 +94,8 @@ const AdminDashboard: React.FC = () => {
 
   const stats = [
     { label: 'Products', value: products.length.toString(), change: '+2 this cycle', icon: Package, insight: 'Catalog coverage is now shared with the storefront through the API.', targetTab: 'products' },
-    { label: 'Featured', value: featuredProducts.length.toString(), change: 'Homepage ready', icon: Star, insight: 'Featured slots sync directly with the storefront home page.', targetTab: 'products' },
-    { label: 'New arrivals', value: newArrivals.length.toString(), change: 'Fresh inventory', icon: TrendingUp, insight: 'New items are instantly reflected in storefront merchandising.', targetTab: 'products' },
+    { label: 'Orders', value: orderCount.toString(), change: 'Checkout activity', icon: ShoppingCart, insight: 'Track live order flow and jump into fulfilment from the admin workspace.', targetTab: 'orders' },
+    { label: 'Newsletter', value: newsletterCount.toString(), change: 'Audience stored', icon: Mail, insight: 'Subscriber totals reflect the audience available for newsletter campaigns.', targetTab: 'newsletter' },
     { label: 'Analytics', value: 'Live', change: 'Backend driven', icon: Brain, insight: 'ML-friendly metrics now come from the FastAPI backend.', targetTab: 'analytics' },
   ];
 
@@ -161,14 +200,18 @@ const AdminDashboard: React.FC = () => {
                             <img src={product.image} alt={product.name} className="h-12 w-12 rounded-2xl object-cover" />
                             <div>
                               <p className="font-semibold text-slate-950 dark:text-slate-50">{product.name}</p>
-                              <p className="text-sm text-slate-500 dark:text-slate-400">{product.rating.toFixed(1)} stars • {product.reviews} reviews</p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400">{product.rating.toFixed(1)} stars • {product.reviews} reviews • {(Number.isFinite(product.stockQuantity) ? product.stockQuantity : product.inStock ? 10 : 0)} in inventory</p>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{product.category}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-slate-950 dark:text-slate-50">${product.price.toFixed(2)}</td>
                         <td className="px-6 py-4">
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${product.inStock ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'}`}>{product.inStock ? 'In stock' : 'Out of stock'}</span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            !product.inStock || (Number.isFinite(product.stockQuantity) ? product.stockQuantity : 0) <= 5
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                          }`}>{product.inStock ? `${Number.isFinite(product.stockQuantity) ? product.stockQuantity : 10} in stock` : 'Out of stock'}</span>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap gap-2">
@@ -318,7 +361,7 @@ const AdminDashboard: React.FC = () => {
         </button>
       </div>
 
-      {editingProduct && <ProductEditModal product={editingProduct} isOpen={Boolean(editingProduct)} onClose={() => setEditingProduct(null)} onSave={(id, updates) => void updateProduct(id, updates)} />}
+      {editingProduct && <ProductEditModal product={editingProduct} isOpen={Boolean(editingProduct)} onClose={() => setEditingProduct(null)} onSave={updateProduct} />}
       <AddProductForm isOpen={showAddProductForm} onClose={() => setShowAddProductForm(false)} />
     </div>
   );

@@ -16,6 +16,7 @@ const NewsletterManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [visibleSubscriberCount, setVisibleSubscriberCount] = useState(3);
 
   const loadSubscribers = async () => {
     if (!token) {
@@ -37,6 +38,10 @@ const NewsletterManager: React.FC = () => {
   useEffect(() => {
     void loadSubscribers();
   }, [token]);
+
+  useEffect(() => {
+    setVisibleSubscriberCount(3);
+  }, [subscribers]);
 
   const handleSendNewsletter = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -84,12 +89,17 @@ const NewsletterManager: React.FC = () => {
               <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">No newsletter subscribers yet.</p>
             </div>
           ) : (
-            subscribers.map((subscriber) => (
+            subscribers.slice(0, visibleSubscriberCount).map((subscriber) => (
               <article key={`${subscriber.email}-${subscriber.subscribedAt}`} className="glass-panel rounded-[28px] p-5">
                 <p className="text-lg font-bold text-slate-950 dark:text-slate-50">{subscriber.email}</p>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Subscribed {new Date(subscriber.subscribedAt).toLocaleString()}</p>
               </article>
             ))
+          )}
+          {visibleSubscriberCount < subscribers.length && (
+            <button type="button" onClick={() => setVisibleSubscriberCount((count) => count + 3)} className="secondary-button">
+              Load 3 more
+            </button>
           )}
         </section>
 

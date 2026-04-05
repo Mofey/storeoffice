@@ -18,10 +18,28 @@ export interface Product {
   description: string;
   rating: number;
   reviews: number;
+  stockQuantity: number;
   inStock: boolean;
   isFeatured?: boolean;
   isNewArrival?: boolean;
 }
+
+const normalizeProduct = (product: Product): Product => {
+  const fallbackStockQuantity =
+    typeof product.stockQuantity === 'number' && Number.isFinite(product.stockQuantity)
+      ? product.stockQuantity
+      : product.inStock
+        ? 10
+        : 0;
+
+  const stockQuantity = Math.max(0, Math.trunc(fallbackStockQuantity));
+
+  return {
+    ...product,
+    stockQuantity,
+    inStock: stockQuantity > 0,
+  };
+};
 
 interface ProductContextType {
   products: Product[];
@@ -29,7 +47,7 @@ interface ProductContextType {
   featuredProducts: Product[];
   newArrivals: Product[];
   refreshProducts: () => Promise<void>;
-  updateProduct: (id: number, updates: Partial<Product>) => Promise<void>;
+  updateProduct: (id: number, updates: Partial<Product>) => Promise<Product>;
   deleteProduct: (id: number) => Promise<void>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   addCategory: (category: Category) => Promise<void>;
@@ -57,7 +75,7 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
       apiRequest<Product[]>('/products'),
       apiRequest<Category[]>('/categories'),
     ]);
-    setProducts(productsResponse);
+    setProducts(productsResponse.map(normalizeProduct));
     setCategories(categoriesResponse);
   };
 
@@ -66,21 +84,25 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const addProduct = async (product: Omit<Product, 'id'>) => {
-    await apiRequest<Product>('/products', {
+    const createdProduct = await apiRequest<Product>('/products', {
       method: 'POST',
       token,
       body: JSON.stringify(product),
     });
+    setProducts((currentProducts) => [...currentProducts, normalizeProduct(createdProduct)]);
     await refreshProducts();
   };
 
   const updateProduct = async (id: number, updates: Partial<Product>) => {
-    await apiRequest<Product>(`/products/${id}`, {
+    const updatedProduct = normalizeProduct(await apiRequest<Product>(`/products/${id}`, {
       method: 'PUT',
       token,
       body: JSON.stringify(updates),
-    });
-    await refreshProducts();
+    }));
+    setProducts((currentProducts) =>
+      currentProducts.map((product) => (product.id === id ? updatedProduct : product))
+    );
+    return updatedProduct;
   };
 
   const deleteProduct = async (id: number) => {

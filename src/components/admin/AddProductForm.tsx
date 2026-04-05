@@ -17,6 +17,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ isOpen, onClose }) => {
     description: '',
     rating: 4.5,
     reviews: 0,
+    stockQuantity: 10,
     inStock: true,
     isFeatured: false,
     isNewArrival: false
@@ -26,7 +27,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await addProduct(formData);
+    await addProduct({ ...formData, inStock: formData.stockQuantity > 0 });
     onClose();
     // Reset form
     setFormData({
@@ -37,6 +38,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ isOpen, onClose }) => {
       description: '',
       rating: 4.5,
       reviews: 0,
+      stockQuantity: 10,
       inStock: true,
       isFeatured: false,
       isNewArrival: false
@@ -180,6 +182,21 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ isOpen, onClose }) => {
                 placeholder="0"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Stock Quantity
+              </label>
+              <input
+                type="number"
+                name="stockQuantity"
+                value={formData.stockQuantity}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+                min="0"
+                placeholder="0"
+              />
+            </div>
           </div>
 
           {/* Product Image */}
@@ -235,12 +252,13 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ isOpen, onClose }) => {
                 type="checkbox"
                 id="inStock"
                 name="inStock"
-                checked={formData.inStock}
+                checked={formData.stockQuantity > 0}
+                disabled
                 onChange={handleCheckboxChange}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="inStock" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                In Stock
+                In Stock (auto)
               </label>
             </div>
 

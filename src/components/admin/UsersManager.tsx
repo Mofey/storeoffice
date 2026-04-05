@@ -23,6 +23,7 @@ const UsersManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [visibleUserCount, setVisibleUserCount] = useState(3);
 
   const loadUsers = async () => {
     if (!token) {
@@ -44,6 +45,10 @@ const UsersManager: React.FC = () => {
   useEffect(() => {
     void loadUsers();
   }, [token]);
+
+  useEffect(() => {
+    setVisibleUserCount(3);
+  }, [users]);
 
   const toggleSelection = (userId: string) => {
     setSelectedUserIds((current) => (current.includes(userId) ? current.filter((item) => item !== userId) : [...current, userId]));
@@ -131,7 +136,7 @@ const UsersManager: React.FC = () => {
               <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">No users found yet.</p>
             </div>
           ) : (
-            users.map((record) => (
+            users.slice(0, visibleUserCount).map((record) => (
               <article key={record.id} className="glass-panel rounded-[28px] p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex items-start gap-4">
@@ -175,6 +180,11 @@ const UsersManager: React.FC = () => {
                 </div>
               </article>
             ))
+          )}
+          {visibleUserCount < users.length && (
+            <button type="button" onClick={() => setVisibleUserCount((count) => count + 3)} className="secondary-button">
+              Load 3 more
+            </button>
           )}
         </section>
 

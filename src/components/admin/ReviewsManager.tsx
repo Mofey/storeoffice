@@ -21,6 +21,7 @@ const ReviewsManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [visibleReviewCount, setVisibleReviewCount] = useState(3);
 
   const loadReviews = async () => {
     if (!token) {
@@ -41,6 +42,10 @@ const ReviewsManager: React.FC = () => {
   useEffect(() => {
     void loadReviews();
   }, [token]);
+
+  useEffect(() => {
+    setVisibleReviewCount(3);
+  }, [reviews]);
 
   const handleDeleteReview = async (reviewId: string) => {
     if (!token) {
@@ -84,7 +89,7 @@ const ReviewsManager: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {reviews.map((review) => (
+          {reviews.slice(0, visibleReviewCount).map((review) => (
             <article key={review.id} className="glass-panel rounded-[28px] p-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -109,6 +114,11 @@ const ReviewsManager: React.FC = () => {
               <p className="mt-5 rounded-[24px] bg-white p-4 text-sm leading-7 text-slate-600 dark:bg-slate-900 dark:text-slate-400">{review.comment}</p>
             </article>
           ))}
+          {visibleReviewCount < reviews.length && (
+            <button type="button" onClick={() => setVisibleReviewCount((count) => count + 3)} className="secondary-button">
+              Load 3 more
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -234,8 +234,11 @@ const SegmentDonut: React.FC<{ segments: CustomerSegment[] }> = ({ segments }) =
   const colors = ['#0f172a', '#22d3ee', '#f97316', '#a855f7'];
 
   return (
-    <div className="flex flex-col items-center justify-center gap-8 lg:flex-row lg:items-center lg:justify-between">
-      <div className="relative h-48 w-48">
+    <div className="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
+      <div className="mx-auto flex w-full justify-center xl:mx-0 xl:w-auto xl:justify-start">
+        <div className="relative h-56 w-56">
+          <div className="absolute inset-[38px] rounded-full border border-slate-200/80 bg-white/90 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)] dark:border-slate-700/80 dark:bg-slate-900/95" />
+          <div className="absolute inset-[54px] rounded-full bg-[radial-gradient(circle_at_top,#ecfeff,transparent_65%)] dark:bg-[radial-gradient(circle_at_top,#164e63,transparent_65%)]" />
         <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
           <circle cx="100" cy="100" r={radius} fill="none" stroke="rgba(148, 163, 184, 0.18)" strokeWidth="18" />
           {normalizedSegments.map((segment, index) => {
@@ -258,16 +261,17 @@ const SegmentDonut: React.FC<{ segments: CustomerSegment[] }> = ({ segments }) =
             );
           })}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Segments</p>
-          <p className="mt-2 text-3xl font-bold text-slate-950 dark:text-slate-50">
-            {normalizedSegments.reduce((sum, item) => sum + item.count, 0)}
-          </p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">tracked users</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-12 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Customer mix</p>
+            <p className="mt-2 text-3xl font-bold leading-none text-slate-950 dark:text-slate-50">
+              {normalizedSegments.reduce((sum, item) => sum + item.count, 0)}
+            </p>
+            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">tracked users</p>
+          </div>
         </div>
       </div>
 
-      <div className="grid w-full gap-4 lg:max-w-xs">
+      <div className="grid w-full gap-4 xl:max-w-xs">
         {normalizedSegments.map((segment, index) => (
           <div
             key={segment.segment}
@@ -295,6 +299,9 @@ const AnalyticsCharts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [visibleCategoryCount, setVisibleCategoryCount] = useState(3);
+  const [visibleAnomalyCount, setVisibleAnomalyCount] = useState(3);
+  const [visibleTopProductCount, setVisibleTopProductCount] = useState(5);
 
   useEffect(() => {
     let isMounted = true;
@@ -341,6 +348,9 @@ const AnalyticsCharts: React.FC = () => {
   const topProducts = dashboard?.topProducts ?? [];
   const anomalies = dashboard?.anomalies ?? [];
   const segmentDistribution = dashboard?.customerInsights.segmentDistribution ?? [];
+  const visibleCategories = categoryPerformance.slice(0, visibleCategoryCount);
+  const visibleAnomalies = anomalies.slice(0, visibleAnomalyCount);
+  const visibleTopProducts = topProducts.slice(0, visibleTopProductCount);
   const latestRevenuePoint = revenueData[revenueData.length - 1];
   const strongestCategory = [...categoryPerformance].sort((a, b) => b.mlScore - a.mlScore)[0];
   const topProduct = topProducts[0];
@@ -378,6 +388,12 @@ const AnalyticsCharts: React.FC = () => {
   ];
 
   const activeTabMeta = internalTabs.find((tab) => tab.id === activeTab);
+
+  useEffect(() => {
+    setVisibleCategoryCount(3);
+    setVisibleAnomalyCount(3);
+    setVisibleTopProductCount(5);
+  }, [activeTab, refreshKey, dashboard]);
 
   return (
     <div className="space-y-6">
@@ -479,7 +495,7 @@ const AnalyticsCharts: React.FC = () => {
 
       {!loading && !error && dashboard && activeTab === 'forecast' && (
         <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
-          <div className="grid gap-6">
+          <div className="grid content-start gap-6 self-start">
             <section className="glass-panel rounded-[28px] p-6">
               <div className="flex flex-wrap items-start justify-between gap-5">
                 <div>
@@ -541,15 +557,15 @@ const AnalyticsCharts: React.FC = () => {
       )}
 
       {!loading && !error && dashboard && activeTab === 'catalog' && (
-        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
-          <div className="grid gap-6">
+        <div className="grid items-start gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+          <div className="grid content-start gap-6 self-start">
             <section className="glass-panel rounded-[28px] p-6">
               <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Category performance and quality</h3>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
                 Sales, growth, and ML quality signals are blended into a ranking view designed for fast merchandising decisions.
               </p>
               <div className="mt-5 space-y-3">
-                {categoryPerformance.map((item) => {
+                {visibleCategories.map((item) => {
                   const salesWidth = latestRevenuePoint ? Math.max(12, (item.sales / latestRevenuePoint.predicted) * 100) : 12;
                   return (
                     <div key={item.category} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
@@ -589,14 +605,55 @@ const AnalyticsCharts: React.FC = () => {
                   );
                 })}
               </div>
+              {visibleCategoryCount < categoryPerformance.length && (
+                <button type="button" onClick={() => setVisibleCategoryCount((count) => count + 3)} className="secondary-button mt-5">
+                  Load 3 more
+                </button>
+              )}
             </section>
+
+            <article className="glass-panel rounded-[28px] p-6">
+              <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Anomaly detection</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
+                Products with the biggest gaps between current signal and predicted demand are surfaced here first.
+              </p>
+              <div className="mt-5 space-y-3">
+                {anomalies.length === 0 && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+                    No major anomalies were flagged by the current rules-based detector.
+                  </div>
+                )}
+                {visibleAnomalies.map((item) => {
+                  const delta = item.predictedSales - item.currentSales;
+                  return (
+                    <div key={item.id} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-semibold text-slate-950 dark:text-slate-50">{item.name}</p>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Current {item.currentSales} | Predicted {item.predictedSales}</p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${delta >= 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/35 dark:text-amber-300' : 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/35 dark:text-cyan-300'}`}>
+                          {delta >= 0 ? '+' : ''}
+                          {delta} gap
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {visibleAnomalyCount < anomalies.length && (
+                <button type="button" onClick={() => setVisibleAnomalyCount((count) => count + 3)} className="secondary-button mt-5">
+                  Load 3 more
+                </button>
+              )}
+            </article>
           </div>
 
-          <section className="grid gap-6">
+          <section className="grid content-start gap-6 self-start">
             <article className="glass-panel rounded-[28px] p-6">
               <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Top products</h3>
               <div className="mt-5 space-y-3">
-                {topProducts.map((item, index) => (
+                {visibleTopProducts.map((item, index) => (
                   <div key={item.id} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -618,37 +675,11 @@ const AnalyticsCharts: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </article>
-
-            <article className="glass-panel rounded-[28px] p-6">
-              <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Anomaly detection</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
-                Products with the biggest gaps between current signal and predicted demand are surfaced here first.
-              </p>
-              <div className="mt-5 space-y-3">
-                {anomalies.length === 0 && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
-                    No major anomalies were flagged by the current rules-based detector.
-                  </div>
-                )}
-                {anomalies.map((item) => {
-                  const delta = item.predictedSales - item.currentSales;
-                  return (
-                    <div key={item.id} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="font-semibold text-slate-950 dark:text-slate-50">{item.name}</p>
-                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Current {item.currentSales} | Predicted {item.predictedSales}</p>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${delta >= 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/35 dark:text-amber-300' : 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/35 dark:text-cyan-300'}`}>
-                          {delta >= 0 ? '+' : ''}
-                          {delta} gap
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {visibleTopProductCount < topProducts.length && (
+                <button type="button" onClick={() => setVisibleTopProductCount((count) => count + 3)} className="secondary-button mt-5">
+                  Load 3 more
+                </button>
+              )}
             </article>
           </section>
         </div>
@@ -666,9 +697,28 @@ const AnalyticsCharts: React.FC = () => {
                 <SegmentDonut segments={segmentDistribution} />
               </div>
             </section>
+
+            <article className="glass-panel rounded-[28px] p-6">
+              <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Operational recommendations</h3>
+              <div className="mt-5 space-y-3">
+                {segmentDistribution.map((segment) => (
+                  <div key={segment.segment} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-semibold text-slate-950 dark:text-slate-50">{segment.segment}</p>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{segment.count} customers, {segment.percentage}% of current mix.</p>
+                      </div>
+                      <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700 dark:bg-cyan-900/35 dark:text-cyan-300">
+                        Priority
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
           </div>
 
-          <section className="grid gap-6">
+          <section className="grid content-start gap-6 self-start">
             <article className="glass-panel rounded-[28px] p-6">
               <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Customer intelligence notes</h3>
               <div className="mt-5 space-y-3">
@@ -691,25 +741,6 @@ const AnalyticsCharts: React.FC = () => {
                     Current segmenting is rule-based and transparent, which is helpful for admin trust. When historical order recency and repeat frequency get richer, this panel can evolve into a true retention model view.
                   </p>
                 </div>
-              </div>
-            </article>
-
-            <article className="glass-panel rounded-[28px] p-6">
-              <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Operational recommendations</h3>
-              <div className="mt-5 space-y-3">
-                {segmentDistribution.map((segment) => (
-                  <div key={segment.segment} className="rounded-2xl bg-white p-4 dark:bg-slate-900">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-slate-950 dark:text-slate-50">{segment.segment}</p>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{segment.count} customers, {segment.percentage}% of current mix.</p>
-                      </div>
-                      <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700 dark:bg-cyan-900/35 dark:text-cyan-300">
-                        Priority
-                      </span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </article>
           </section>
