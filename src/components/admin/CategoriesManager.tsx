@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Edit, FolderTree, Plus, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../lib/api';
 import { type Category, useProducts } from '../../contexts/ProductContext';
+import ConfirmDialog from './ConfirmDialog';
 
 const emptyCategory: Category = {
   id: '',
@@ -18,6 +19,8 @@ const CategoriesManager: React.FC = () => {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [visibleCount, setVisibleCount] = useState(3);
+  const [pendingDeleteCategory, setPendingDeleteCategory] = useState<Category | null>(null);
+  const [isDeletingCategory, setIsDeletingCategory] = useState(false);
 
   const productCounts = useMemo(() => {
     return products.reduce<Record<string, number>>((accumulator, product) => {
@@ -69,17 +72,34 @@ const CategoriesManager: React.FC = () => {
     }
   };
 
-  const handleDelete = async (categoryId: string) => {
+  const handleDelete = (categoryId: string) => {
+    const category = categories.find((item) => item.id === categoryId);
+    if (!category) {
+      return;
+    }
+
+    setPendingDeleteCategory(category);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!pendingDeleteCategory) {
+      return;
+    }
+
+    setIsDeletingCategory(true);
     setMessage('');
     setError('');
     try {
-      await deleteCategory(categoryId);
-      if (editingId === categoryId) {
+      await deleteCategory(pendingDeleteCategory.id);
+      if (editingId === pendingDeleteCategory.id) {
         resetForm();
       }
+      setPendingDeleteCategory(null);
       setMessage('Category deleted successfully.');
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'Unable to delete category right now.');
+    } finally {
+      setIsDeletingCategory(false);
     }
   };
 
@@ -217,6 +237,19 @@ const CategoriesManager: React.FC = () => {
           </button>
         )}
       </section>
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteCategory)}
+        title="Delete category?"
+        description={`"${pendingDeleteCategory?.name ?? 'This category'}" will be removed from the category list. This action cannot be undone.`}
+        confirmLabel="Delete category"
+        isProcessing={isDeletingCategory}
+        onClose={() => {
+          if (!isDeletingCategory) {
+            setPendingDeleteCategory(null);
+          }
+        }}
+        onConfirm={confirmDeleteCategory}
+      />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Mail, RefreshCcw, ShieldAlert, ShieldCheck, Trash2, Users } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
+import ConfirmDialog from './ConfirmDialog';
 
 interface UserRecord {
   id: string;
@@ -24,6 +25,8 @@ const UsersManager: React.FC = () => {
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [visibleUserCount, setVisibleUserCount] = useState(3);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<UserRecord | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   const loadUsers = async () => {
     if (!token) {
@@ -71,21 +74,34 @@ const UsersManager: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!token) {
+  const handleDeleteUser = (userId: string) => {
+    const targetUser = users.find((record) => record.id === userId);
+    if (!targetUser) {
       return;
     }
 
+    setPendingDeleteUser(targetUser);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!token || !pendingDeleteUser) {
+      return;
+    }
+
+    setIsDeletingUser(true);
     try {
-      const response = await apiRequest<{ message: string }>(`/admin/users/${userId}`, {
+      const response = await apiRequest<{ message: string }>(`/admin/users/${pendingDeleteUser.id}`, {
         method: 'DELETE',
         token,
       });
+      setPendingDeleteUser(null);
       setStatusMessage(response.message);
-      setSelectedUserIds((current) => current.filter((item) => item !== userId));
+      setSelectedUserIds((current) => current.filter((item) => item !== pendingDeleteUser.id));
       await loadUsers();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to delete user.');
+    } finally {
+      setIsDeletingUser(false);
     }
   };
 
@@ -212,6 +228,19 @@ const UsersManager: React.FC = () => {
           </div>
         </section>
       </div>
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteUser)}
+        title="Delete user?"
+        description={`"${pendingDeleteUser?.name ?? 'This user'}" and their related data will be removed from the admin records.`}
+        confirmLabel="Delete user"
+        isProcessing={isDeletingUser}
+        onClose={() => {
+          if (!isDeletingUser) {
+            setPendingDeleteUser(null);
+          }
+        }}
+        onConfirm={confirmDeleteUser}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Edit, Plus, Save, Trash2 } from 'lucide-react';
 import { useSiteContent } from '../../contexts/SiteContentContext';
+import ConfirmDialog from './ConfirmDialog';
 
 const SiteContentEditor: React.FC = () => {
   const { content, updateContent, updateCarouselItem, addCarouselItem, deleteCarouselItem } = useSiteContent();
@@ -15,6 +16,8 @@ const SiteContentEditor: React.FC = () => {
   const [draftContent, setDraftContent] = useState(content);
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [savedSection, setSavedSection] = useState<string | null>(null);
+  const [pendingDeleteCarouselItem, setPendingDeleteCarouselItem] = useState<{ id: number; title: string } | null>(null);
+  const [isDeletingCarouselItem, setIsDeletingCarouselItem] = useState(false);
 
   useEffect(() => {
     setDraftContent(content);
@@ -33,6 +36,24 @@ const SiteContentEditor: React.FC = () => {
     if (newCarouselItem.title && newCarouselItem.subtitle && newCarouselItem.image) {
       void addCarouselItem(newCarouselItem);
       setNewCarouselItem({ title: '', subtitle: '', image: '', cta: '' });
+    }
+  };
+
+  const handleDeleteCarouselItem = (id: number, title: string) => {
+    setPendingDeleteCarouselItem({ id, title });
+  };
+
+  const confirmDeleteCarouselItem = async () => {
+    if (!pendingDeleteCarouselItem) {
+      return;
+    }
+
+    setIsDeletingCarouselItem(true);
+    try {
+      await deleteCarouselItem(pendingDeleteCarouselItem.id);
+      setPendingDeleteCarouselItem(null);
+    } finally {
+      setIsDeletingCarouselItem(false);
     }
   };
 
@@ -253,7 +274,7 @@ const SiteContentEditor: React.FC = () => {
                   <button type="button" onClick={() => setEditingCarousel(editingCarousel === item.id ? null : item.id)} className="text-blue-600 hover:text-blue-700">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button type="button" onClick={() => void deleteCarouselItem(item.id)} className="text-red-600 hover:text-red-700">
+                  <button type="button" onClick={() => void handleDeleteCarouselItem(item.id, item.title)} className="text-red-600 hover:text-red-700">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -449,6 +470,19 @@ const SiteContentEditor: React.FC = () => {
           {renderSaveRow('newsletter')}
         </div>
       )}
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteCarouselItem)}
+        title="Delete carousel item?"
+        description={`"${pendingDeleteCarouselItem?.title ?? 'This slide'}" will be removed from the hero carousel.`}
+        confirmLabel="Delete slide"
+        isProcessing={isDeletingCarouselItem}
+        onClose={() => {
+          if (!isDeletingCarouselItem) {
+            setPendingDeleteCarouselItem(null);
+          }
+        }}
+        onConfirm={confirmDeleteCarouselItem}
+      />
     </div>
   );
 };

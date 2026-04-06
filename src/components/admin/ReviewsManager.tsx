@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MessageSquare, RefreshCcw, Star, Trash2 } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
+import ConfirmDialog from './ConfirmDialog';
 
 interface ReviewRecord {
   id: string;
@@ -22,6 +23,8 @@ const ReviewsManager: React.FC = () => {
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [visibleReviewCount, setVisibleReviewCount] = useState(3);
+  const [pendingDeleteReview, setPendingDeleteReview] = useState<ReviewRecord | null>(null);
+  const [isDeletingReview, setIsDeletingReview] = useState(false);
 
   const loadReviews = async () => {
     if (!token) {
@@ -47,20 +50,33 @@ const ReviewsManager: React.FC = () => {
     setVisibleReviewCount(3);
   }, [reviews]);
 
-  const handleDeleteReview = async (reviewId: string) => {
-    if (!token) {
+  const handleDeleteReview = (reviewId: string) => {
+    const review = reviews.find((item) => item.id === reviewId);
+    if (!review) {
       return;
     }
 
+    setPendingDeleteReview(review);
+  };
+
+  const confirmDeleteReview = async () => {
+    if (!token || !pendingDeleteReview) {
+      return;
+    }
+
+    setIsDeletingReview(true);
     try {
-      const response = await apiRequest<{ message: string }>(`/admin/reviews/${reviewId}`, {
+      const response = await apiRequest<{ message: string }>(`/admin/reviews/${pendingDeleteReview.id}`, {
         method: 'DELETE',
         token,
       });
+      setPendingDeleteReview(null);
       setStatusMessage(response.message);
       await loadReviews();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to delete review.');
+    } finally {
+      setIsDeletingReview(false);
     }
   };
 
@@ -121,6 +137,19 @@ const ReviewsManager: React.FC = () => {
           )}
         </div>
       )}
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteReview)}
+        title="Delete review?"
+        description={`This review from "${pendingDeleteReview?.userName ?? 'this customer'}" will be permanently removed.`}
+        confirmLabel="Delete review"
+        isProcessing={isDeletingReview}
+        onClose={() => {
+          if (!isDeletingReview) {
+            setPendingDeleteReview(null);
+          }
+        }}
+        onConfirm={confirmDeleteReview}
+      />
     </div>
   );
 };

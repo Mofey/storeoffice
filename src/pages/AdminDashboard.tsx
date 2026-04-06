@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { BarChart3, Brain, Edit, FolderTree, LogOut, Mail, Menu, MessageSquare, Moon, Package, Plus, Settings, ShoppingCart, Star, Sun, Trash2, TrendingUp, Users, X } from 'lucide-react';
+import { BarChart3, Brain, Edit, FolderTree, LogOut, Mail, Menu, MessageSquare, Moon, Package, Plus, Settings, ShoppingCart, Sun, Trash2, Users, X } from 'lucide-react';
 import AddProductForm from '../components/admin/AddProductForm';
 import AnalyticsCharts from '../components/admin/AnalyticsCharts';
 import CategoriesManager from '../components/admin/CategoriesManager';
+import ConfirmDialog from '../components/admin/ConfirmDialog';
 import NewsletterManager from '../components/admin/NewsletterManager';
 import OrdersManager from '../components/admin/OrdersManager';
 import ProductEditModal from '../components/admin/ProductEditModal';
@@ -18,17 +19,46 @@ import { apiRequest } from '../lib/api';
 const AdminDashboard: React.FC = () => {
   const { user, token, logout, isHydrated } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
-  const { products, featuredProducts, newArrivals, updateProduct, deleteProduct } = useProducts();
+  const { products, featuredProducts, newArrivals, refreshProducts, updateProduct, deleteProduct } = useProducts();
   const [activeTab, setActiveTab] = useState('overview');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [orderCount, setOrderCount] = useState(0);
   const [newsletterCount, setNewsletterCount] = useState(0);
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'products' || activeTab === 'overview' || activeTab === 'analytics') {
+      void refreshProducts();
+    }
+  }, [activeTab, refreshProducts]);
+
+  useEffect(() => {
+    if (activeTab !== 'products') {
+      return;
+    }
+
+    const refreshOnFocus = () => {
+      void refreshProducts();
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshProducts();
+    }, 5000);
+
+    window.addEventListener('focus', refreshOnFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [activeTab, refreshProducts]);
 
   useEffect(() => {
     let isMounted = true;
@@ -102,6 +132,24 @@ const AdminDashboard: React.FC = () => {
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
     setMobileNavOpen(false);
+  };
+
+  const handleDeleteProduct = (product: Product) => {
+    setPendingDeleteProduct(product);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!pendingDeleteProduct) {
+      return;
+    }
+
+    setIsDeletingProduct(true);
+    try {
+      await deleteProduct(pendingDeleteProduct.id);
+      setPendingDeleteProduct(null);
+    } finally {
+      setIsDeletingProduct(false);
+    }
   };
 
   const renderContent = () => {
@@ -180,7 +228,64 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="glass-panel overflow-hidden rounded-[28px]">
-              <div className="overflow-x-auto">
+              <div className="grid gap-4 p-4 sm:p-5 lg:hidden">
+                {products.map((product) => (
+                  <article key={product.id} className="rounded-[24px] bg-white p-4 shadow-sm dark:bg-slate-900">
+                    <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:text-left">
+                      <img src={product.image} alt={product.name} className="h-16 w-16 rounded-2xl object-cover" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-col items-center justify-between gap-3 sm:flex-row sm:items-start">
+                          <div className="min-w-0">
+                            <p className="truncate text-lg font-bold text-slate-950 dark:text-slate-50">{product.name}</p>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{product.category}</p>
+                          </div>
+                          <p className="shrink-0 text-lg font-bold text-slate-950 dark:text-slate-50">${product.price.toFixed(2)}</p>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            !product.inStock || (Number.isFinite(product.stockQuantity) ? product.stockQuantity : 0) <= 5
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                          }`}>
+                            {product.inStock ? `${Number.isFinite(product.stockQuantity) ? product.stockQuantity : 10} in stock` : 'Out of stock'}
+                          </span>
+                          {product.isFeatured && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Featured</span>}
+                          {product.isNewArrival && <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">New</span>}
+                        </div>
+
+                        <div className="mt-4 grid gap-2 rounded-[20px] bg-slate-50 p-3 text-sm dark:bg-slate-800/70">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500 dark:text-slate-400">Rating</span>
+                            <span className="font-semibold text-slate-950 dark:text-slate-50">{product.rating.toFixed(1)} stars</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500 dark:text-slate-400">Reviews</span>
+                            <span className="font-semibold text-slate-950 dark:text-slate-50">{product.reviews}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500 dark:text-slate-400">Inventory</span>
+                            <span className="font-semibold text-slate-950 dark:text-slate-50">{Number.isFinite(product.stockQuantity) ? product.stockQuantity : product.inStock ? 10 : 0}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+                          <button type="button" onClick={() => setEditingProduct(product)} className="inline-flex items-center justify-center rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </button>
+                          <button type="button" onClick={() => void handleDeleteProduct(product)} className="inline-flex items-center justify-center rounded-full bg-red-100 px-4 py-2 text-sm font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-300">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto lg:block">
                 <table className="w-full min-w-[760px]">
                   <thead className="bg-slate-100/80 dark:bg-slate-800/80">
                     <tr className="text-left text-xs uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
@@ -224,7 +329,7 @@ const AdminDashboard: React.FC = () => {
                             <button type="button" onClick={() => setEditingProduct(product)} className="rounded-full bg-slate-100 p-2 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                               <Edit className="h-4 w-4" />
                             </button>
-                            <button type="button" onClick={() => void deleteProduct(product.id)} className="rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/30 dark:text-red-300">
+                            <button type="button" onClick={() => void handleDeleteProduct(product)} className="rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/30 dark:text-red-300">
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -319,8 +424,8 @@ const AdminDashboard: React.FC = () => {
           />
         )}
 
-        <div className={`fixed inset-x-4 bottom-24 z-50 transition duration-200 ${mobileNavOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'}`}>
-          <div className="glass-panel rounded-[28px] p-4 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.55)]">
+        <div className={`fixed inset-x-0 bottom-24 z-50 flex justify-center px-3 transition duration-200 ${mobileNavOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'}`}>
+          <div className="glass-panel max-h-[72vh] w-full max-w-sm overflow-y-auto rounded-[28px] p-4 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.55)]">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-sm font-bold text-slate-950 dark:text-slate-50">Navigate admin</p>
@@ -354,7 +459,7 @@ const AdminDashboard: React.FC = () => {
         <button
           type="button"
           onClick={() => setMobileNavOpen((open) => !open)}
-          className="glass-panel fixed bottom-6 right-4 z-[60] inline-flex items-center gap-3 rounded-full px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.55)] dark:text-slate-50"
+          className="glass-panel fixed bottom-6 left-4 z-[60] inline-flex items-center gap-3 rounded-full px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.55)] dark:text-slate-50"
         >
           {mobileNavOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           {mobileNavOpen ? 'Close menu' : 'Open menu'}
@@ -363,6 +468,19 @@ const AdminDashboard: React.FC = () => {
 
       {editingProduct && <ProductEditModal product={editingProduct} isOpen={Boolean(editingProduct)} onClose={() => setEditingProduct(null)} onSave={updateProduct} />}
       <AddProductForm isOpen={showAddProductForm} onClose={() => setShowAddProductForm(false)} />
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteProduct)}
+        title="Delete product?"
+        description={`"${pendingDeleteProduct?.name ?? 'This product'}" will be removed from the catalog and can no longer appear in the storefront.`}
+        confirmLabel="Delete product"
+        isProcessing={isDeletingProduct}
+        onClose={() => {
+          if (!isDeletingProduct) {
+            setPendingDeleteProduct(null);
+          }
+        }}
+        onConfirm={confirmDeleteProduct}
+      />
     </div>
   );
 };
