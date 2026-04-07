@@ -7,6 +7,7 @@ const SiteContentEditor: React.FC = () => {
   const { content, updateContent, updateCarouselItem, addCarouselItem, deleteCarouselItem } = useSiteContent();
   const [activeTab, setActiveTab] = useState('general');
   const [editingCarousel, setEditingCarousel] = useState<number | null>(null);
+  const [newNotificationText, setNewNotificationText] = useState('');
   const [newCarouselItem, setNewCarouselItem] = useState({
     title: '',
     subtitle: '',
@@ -17,7 +18,9 @@ const SiteContentEditor: React.FC = () => {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [savedSection, setSavedSection] = useState<string | null>(null);
   const [pendingDeleteCarouselItem, setPendingDeleteCarouselItem] = useState<{ id: number; title: string } | null>(null);
+  const [pendingDeleteNotification, setPendingDeleteNotification] = useState<{ id: number; text: string } | null>(null);
   const [isDeletingCarouselItem, setIsDeletingCarouselItem] = useState(false);
+  const [isDeletingNotification, setIsDeletingNotification] = useState(false);
 
   useEffect(() => {
     setDraftContent(content);
@@ -57,7 +60,58 @@ const SiteContentEditor: React.FC = () => {
     }
   };
 
-  const handleSaveSection = async (section: 'general' | 'pages' | 'newsletter') => {
+  const handleAddNotification = () => {
+    const text = newNotificationText.trim();
+    if (!text) {
+      return;
+    }
+
+    const nextId =
+      draftContent.notificationMessages.length > 0
+        ? Math.max(...draftContent.notificationMessages.map((item) => item.id)) + 1
+        : 1;
+
+    setDraftContent((prev) => ({
+      ...prev,
+      notificationMessages: [...prev.notificationMessages, { id: nextId, text }],
+    }));
+    setNewNotificationText('');
+    setSavedSection(null);
+  };
+
+  const handleNotificationChange = (id: number, value: string) => {
+    setDraftContent((prev) => ({
+      ...prev,
+      notificationMessages: prev.notificationMessages.map((item) => (item.id === id ? { ...item, text: value } : item)),
+    }));
+    setSavedSection(null);
+  };
+
+  const handleDeleteNotification = (id: number) => {
+    const notification = draftContent.notificationMessages.find((item) => item.id === id);
+    if (!notification) {
+      return;
+    }
+
+    setPendingDeleteNotification(notification);
+  };
+
+  const confirmDeleteNotification = async () => {
+    if (!pendingDeleteNotification) {
+      return;
+    }
+
+    setIsDeletingNotification(true);
+    setDraftContent((prev) => ({
+      ...prev,
+      notificationMessages: prev.notificationMessages.filter((item) => item.id !== pendingDeleteNotification.id),
+    }));
+    setSavedSection(null);
+    setPendingDeleteNotification(null);
+    setIsDeletingNotification(false);
+  };
+
+  const handleSaveSection = async (section: 'general' | 'pages' | 'newsletter' | 'notifications') => {
     setSavingSection(section);
     setSavedSection(null);
 
@@ -94,6 +148,14 @@ const SiteContentEditor: React.FC = () => {
         });
       }
 
+      if (section === 'notifications') {
+        await updateContent({
+          notificationMessages: draftContent.notificationMessages
+            .map((item) => ({ ...item, text: item.text.trim() }))
+            .filter((item) => item.text),
+        });
+      }
+
       setSavedSection(section);
     } finally {
       setSavingSection(null);
@@ -105,9 +167,10 @@ const SiteContentEditor: React.FC = () => {
     { id: 'hero', label: 'Hero Carousel' },
     { id: 'pages', label: 'Page Content' },
     { id: 'newsletter', label: 'Newsletter' },
+    { id: 'notifications', label: 'Ticker Messages' },
   ];
 
-  const renderSaveRow = (section: 'general' | 'pages' | 'newsletter') => (
+  const renderSaveRow = (section: 'general' | 'pages' | 'newsletter' | 'notifications') => (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
       <p className="text-sm text-gray-500 dark:text-gray-400">
         {savedSection === section ? 'Changes saved.' : 'Changes are only saved when you click the button.'}
@@ -470,6 +533,53 @@ const SiteContentEditor: React.FC = () => {
           {renderSaveRow('newsletter')}
         </div>
       )}
+      {activeTab === 'notifications' && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Add ticker message</label>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                type="text"
+                value={newNotificationText}
+                onChange={(e) => setNewNotificationText(e.target.value)}
+                placeholder="Flash sale tonight, free shipping, launch updates..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+              />
+              <button type="button" onClick={handleAddNotification} className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-cyan-500 dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300">
+                <Plus className="mr-2 h-4 w-4" />
+                Add message
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {draftContent.notificationMessages.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 px-4 py-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                No ticker messages yet. The storefront bar stays hidden until you add one.
+              </div>
+            ) : (
+              draftContent.notificationMessages.map((item) => (
+                <div key={item.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                    <input
+                      type="text"
+                      value={item.text}
+                      onChange={(e) => handleNotificationChange(item.id, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+                    />
+                    <button type="button" onClick={() => handleDeleteNotification(item.id)} className="secondary-button text-rose-600 hover:text-rose-700 dark:text-rose-300">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {renderSaveRow('notifications')}
+        </div>
+      )}
       <ConfirmDialog
         isOpen={Boolean(pendingDeleteCarouselItem)}
         title="Delete carousel item?"
@@ -482,6 +592,19 @@ const SiteContentEditor: React.FC = () => {
           }
         }}
         onConfirm={confirmDeleteCarouselItem}
+      />
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteNotification)}
+        title="Delete ticker message?"
+        description={`"${pendingDeleteNotification?.text ?? 'This message'}" will be removed from the storefront notification bar.`}
+        confirmLabel="Delete message"
+        isProcessing={isDeletingNotification}
+        onClose={() => {
+          if (!isDeletingNotification) {
+            setPendingDeleteNotification(null);
+          }
+        }}
+        onConfirm={confirmDeleteNotification}
       />
     </div>
   );

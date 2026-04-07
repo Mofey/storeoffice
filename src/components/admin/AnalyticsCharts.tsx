@@ -606,8 +606,12 @@ const AnalyticsCharts: React.FC = () => {
                 })}
               </div>
               {visibleCategoryCount < categoryPerformance.length && (
-                <button type="button" onClick={() => setVisibleCategoryCount((count) => count + 3)} className="secondary-button mt-5">
-                  Load 3 more
+                <button
+                  type="button"
+                  onClick={() => setVisibleCategoryCount((count) => count + 3)}
+                  className="secondary-button mx-auto mt-5 block md:mx-0"
+                >
+                  Load more
                 </button>
               )}
             </section>
@@ -642,8 +646,12 @@ const AnalyticsCharts: React.FC = () => {
                 })}
               </div>
               {visibleAnomalyCount < anomalies.length && (
-                <button type="button" onClick={() => setVisibleAnomalyCount((count) => count + 3)} className="secondary-button mt-5">
-                  Load 3 more
+                <button
+                  type="button"
+                  onClick={() => setVisibleAnomalyCount((count) => count + 3)}
+                  className="secondary-button mx-auto mt-5 block md:mx-0"
+                >
+                  Load more
                 </button>
               )}
             </article>
@@ -676,8 +684,12 @@ const AnalyticsCharts: React.FC = () => {
                 ))}
               </div>
               {visibleTopProductCount < topProducts.length && (
-                <button type="button" onClick={() => setVisibleTopProductCount((count) => count + 3)} className="secondary-button mt-5">
-                  Load 3 more
+                <button
+                  type="button"
+                  onClick={() => setVisibleTopProductCount((count) => count + 3)}
+                  className="secondary-button mx-auto mt-5 block md:mx-0"
+                >
+                  Load more
                 </button>
               )}
             </article>

@@ -232,8 +232,12 @@ const CategoriesManager: React.FC = () => {
         </div>
 
         {hasMoreCategories && (
-          <button type="button" onClick={() => setVisibleCount((count) => count + 3)} className="secondary-button mt-6">
-            Load 3 more
+          <button
+            type="button"
+            onClick={() => setVisibleCount((count) => count + 3)}
+            className="secondary-button mx-auto mt-6 block md:mx-0"
+          >
+            Load more
           </button>
         )}
       </section>

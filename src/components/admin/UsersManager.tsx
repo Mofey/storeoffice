@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, RefreshCcw, ShieldAlert, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { Mail, Plus, RefreshCcw, ShieldAlert, ShieldCheck, Trash2, Users } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from './ConfirmDialog';
@@ -27,6 +27,10 @@ const UsersManager: React.FC = () => {
   const [visibleUserCount, setVisibleUserCount] = useState(3);
   const [pendingDeleteUser, setPendingDeleteUser] = useState<UserRecord | null>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   const loadUsers = async () => {
     if (!token) {
@@ -37,7 +41,7 @@ const UsersManager: React.FC = () => {
     setError('');
     try {
       const payload = await apiRequest<UserRecord[]>('/admin/users', { token });
-      setUsers(payload);
+      setUsers(payload.filter((record) => !record.isAdmin));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load users.');
     } finally {
@@ -126,6 +130,37 @@ const UsersManager: React.FC = () => {
     }
   };
 
+  const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token) {
+      return;
+    }
+
+    setIsCreatingUser(true);
+    setError('');
+    setStatusMessage('');
+    try {
+      const created = await apiRequest<UserRecord>('/admin/users', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({
+          name: newUserName,
+          email: newUserEmail,
+          password: newUserPassword,
+        }),
+      });
+      setUsers((current) => [created, ...current]);
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setStatusMessage('Customer account created successfully without email verification.');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to create user.');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -198,13 +233,42 @@ const UsersManager: React.FC = () => {
             ))
           )}
           {visibleUserCount < users.length && (
-            <button type="button" onClick={() => setVisibleUserCount((count) => count + 3)} className="secondary-button">
-              Load 3 more
+            <button
+              type="button"
+              onClick={() => setVisibleUserCount((count) => count + 3)}
+              className="secondary-button mx-auto block md:mx-0"
+            >
+              Load more
             </button>
           )}
         </section>
 
-        <section className="glass-panel rounded-[28px] p-6">
+        <section className="space-y-6">
+          <div className="glass-panel rounded-[28px] p-6">
+            <h4 className="text-xl font-bold text-slate-950 dark:text-slate-50">Create storefront user</h4>
+            <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-400">Create a customer account directly from admin. The account is immediately verified and can sign in on the storefront.</p>
+
+            <form onSubmit={handleCreateUser} className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Name</label>
+                <input value={newUserName} onChange={(event) => setNewUserName(event.target.value)} required className="w-full rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-cyan-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Email</label>
+                <input type="email" value={newUserEmail} onChange={(event) => setNewUserEmail(event.target.value)} required className="w-full rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-cyan-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Temporary password</label>
+                <input type="text" value={newUserPassword} onChange={(event) => setNewUserPassword(event.target.value)} required minLength={8} className="w-full rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-cyan-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50" />
+              </div>
+              <button type="submit" disabled={isCreatingUser} className="primary-button w-full disabled:cursor-not-allowed disabled:opacity-60">
+                <Plus className="mr-2 h-4 w-4" />
+                {isCreatingUser ? 'Creating user...' : 'Create user'}
+              </button>
+            </form>
+          </div>
+
+          <div className="glass-panel rounded-[28px] p-6">
           <h4 className="text-xl font-bold text-slate-950 dark:text-slate-50">Email selected users</h4>
           <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-400">{selectedUserIds.length} user(s) selected. Admin records are excluded from bulk email selection.</p>
 
@@ -225,6 +289,7 @@ const UsersManager: React.FC = () => {
 
           <div className="mt-6 rounded-[24px] bg-white p-4 text-sm leading-7 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
             For security, the admin can inspect stored password hashes only. Original user passwords are never stored in readable form.
+          </div>
           </div>
         </section>
       </div>

@@ -131,8 +131,12 @@ const ReviewsManager: React.FC = () => {
             </article>
           ))}
           {visibleReviewCount < reviews.length && (
-            <button type="button" onClick={() => setVisibleReviewCount((count) => count + 3)} className="secondary-button">
-              Load 3 more
+            <button
+              type="button"
+              onClick={() => setVisibleReviewCount((count) => count + 3)}
+              className="secondary-button mx-auto block md:mx-0"
+            >
+              Load more
             </button>
           )}
         </div>

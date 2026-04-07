@@ -97,8 +97,12 @@ const NewsletterManager: React.FC = () => {
             ))
           )}
           {visibleSubscriberCount < subscribers.length && (
-            <button type="button" onClick={() => setVisibleSubscriberCount((count) => count + 3)} className="secondary-button">
-              Load 3 more
+            <button
+              type="button"
+              onClick={() => setVisibleSubscriberCount((count) => count + 3)}
+              className="secondary-button mx-auto block md:mx-0"
+            >
+              Load more
             </button>
           )}
         </section>

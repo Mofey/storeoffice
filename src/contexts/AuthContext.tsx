@@ -20,6 +20,7 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isHydrated: boolean;
+  setSessionUser: (nextUser: User) => void;
 }
 
 const STORAGE_KEY = 'ecommerce-admin-auth';
@@ -87,6 +88,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const setSessionUser = (nextUser: User) => {
+    if (!token) {
+      setUser(nextUser);
+      return;
+    }
+
+    persistAuth({
+      token,
+      user: nextUser,
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -96,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout: () => persistAuth(null),
         isAuthenticated: Boolean(user && token),
         isHydrated,
+        setSessionUser,
       }}
     >
       {children}

@@ -226,7 +226,11 @@ const OrdersManager: React.FC = () => {
             </article>
           ))}
           {visibleOrderCount < orders.length && (
-            <button type="button" onClick={() => setVisibleOrderCount((count) => count + 3)} className="secondary-button">
+            <button
+              type="button"
+              onClick={() => setVisibleOrderCount((count) => count + 3)}
+              className="secondary-button mx-auto block md:mx-0"
+            >
               Load more
             </button>
           )}

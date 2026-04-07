@@ -10,8 +10,14 @@ interface CarouselItem {
   cta: string;
 }
 
+interface NotificationMessage {
+  id: number;
+  text: string;
+}
+
 interface SiteContent {
   heroCarousel: CarouselItem[];
+  notificationMessages: NotificationMessage[];
   siteTitle: string;
   siteDescription: string;
   footerText: string;
@@ -44,6 +50,7 @@ interface SiteContentContextType {
 
 const fallbackContent: SiteContent = {
   heroCarousel: [],
+  notificationMessages: [],
   siteTitle: '',
   siteDescription: '',
   footerText: '',
