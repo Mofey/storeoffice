@@ -104,8 +104,8 @@ const CategoriesManager: React.FC = () => {
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <section className="glass-panel flex h-full flex-col rounded-[28px] p-6">
+    <div className="grid gap-6 items-start xl:grid-cols-[0.95fr_1.05fr]">
+      <section className="glass-panel flex flex-col rounded-[28px] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">{editingId ? 'Edit category' : 'Create category'}</h3>

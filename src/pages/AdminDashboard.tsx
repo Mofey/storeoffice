@@ -792,7 +792,7 @@ const AdminDashboard: React.FC = () => {
         </button>
       </div>
 
-      {editingProduct && <ProductEditModal product={editingProduct} isOpen={Boolean(editingProduct)} onClose={() => setEditingProduct(null)} onSave={updateProduct} />}
+      {editingProduct && <ProductEditModal product={editingProduct} isOpen={Boolean(editingProduct)} onClose={() => { setEditingProduct(null); void refreshProducts(); }} onSave={updateProduct} />}
       <AddProductForm isOpen={showAddProductForm} onClose={() => setShowAddProductForm(false)} />
       <ConfirmDialog
         isOpen={Boolean(pendingDeleteProduct)}
