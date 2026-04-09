@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useCallback, useState } from 'react';
 import { apiRequest } from '../lib/api';
 import { useAuth } from './AuthContext';
 
@@ -22,6 +22,12 @@ export interface Product {
   inStock: boolean;
   isFeatured?: boolean;
   isNewArrival?: boolean;
+}
+
+interface CatalogBootstrapResponse {
+  products: Product[];
+  categories: Category[];
+  catalogVersion?: string | null;
 }
 
 const normalizeProduct = (product: Product): Product => {
@@ -70,14 +76,11 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const refreshProducts = async () => {
-    const [productsResponse, categoriesResponse] = await Promise.all([
-      apiRequest<Product[]>('/products'),
-      apiRequest<Category[]>('/categories'),
-    ]);
-    setProducts(productsResponse.map(normalizeProduct));
-    setCategories(categoriesResponse);
-  };
+  const refreshProducts = useCallback(async () => {
+    const response = await apiRequest<CatalogBootstrapResponse>('/catalog/bootstrap');
+    setProducts(response.products.map(normalizeProduct));
+    setCategories(response.categories);
+  }, []);
 
   useEffect(() => {
     void refreshProducts();

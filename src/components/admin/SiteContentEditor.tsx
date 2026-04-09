@@ -1,11 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { Check, Edit, Plus, Save, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check, ChevronDown, Edit, Plus, Save, Trash2, X } from 'lucide-react';
 import { useSiteContent } from '../../contexts/SiteContentContext';
 import ConfirmDialog from './ConfirmDialog';
+
+const TICKER_PAGE_SIZE = 3;
 
 const SiteContentEditor: React.FC = () => {
   const { content, updateContent, updateCarouselItem, addCarouselItem, deleteCarouselItem } = useSiteContent();
   const [activeTab, setActiveTab] = useState('general');
+  const [contentMenuOpen, setContentMenuOpen] = useState(false);
+  const contentMenuRef = useRef<HTMLDivElement | null>(null);
   const [editingCarousel, setEditingCarousel] = useState<number | null>(null);
   const [newNotificationText, setNewNotificationText] = useState('');
   const [newCarouselItem, setNewCarouselItem] = useState({
@@ -21,10 +27,29 @@ const SiteContentEditor: React.FC = () => {
   const [pendingDeleteNotification, setPendingDeleteNotification] = useState<{ id: number; text: string } | null>(null);
   const [isDeletingCarouselItem, setIsDeletingCarouselItem] = useState(false);
   const [isDeletingNotification, setIsDeletingNotification] = useState(false);
+  const [visibleTickerCount, setVisibleTickerCount] = useState(TICKER_PAGE_SIZE);
 
   useEffect(() => {
     setDraftContent(content);
   }, [content]);
+
+  useEffect(() => {
+    setVisibleTickerCount(TICKER_PAGE_SIZE);
+  }, [content?.notificationMessages?.length]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!contentMenuRef.current?.contains(target)) {
+        setContentMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, []);
 
   const handleDraftChange = (field: keyof typeof draftContent, value: string) => {
     setDraftContent((prev) => ({ ...prev, [field]: value }));
@@ -71,10 +96,14 @@ const SiteContentEditor: React.FC = () => {
         ? Math.max(...draftContent.notificationMessages.map((item) => item.id)) + 1
         : 1;
 
-    setDraftContent((prev) => ({
-      ...prev,
-      notificationMessages: [...prev.notificationMessages, { id: nextId, text }],
-    }));
+    setDraftContent((prev) => {
+      const nextNotifications = [...prev.notificationMessages, { id: nextId, text }];
+      setVisibleTickerCount((current) => Math.min(current + 1, nextNotifications.length));
+      return {
+        ...prev,
+        notificationMessages: nextNotifications,
+      };
+    });
     setNewNotificationText('');
     setSavedSection(null);
   };
@@ -102,10 +131,14 @@ const SiteContentEditor: React.FC = () => {
     }
 
     setIsDeletingNotification(true);
-    setDraftContent((prev) => ({
-      ...prev,
-      notificationMessages: prev.notificationMessages.filter((item) => item.id !== pendingDeleteNotification.id),
-    }));
+    setDraftContent((prev) => {
+      const nextNotifications = prev.notificationMessages.filter((item) => item.id !== pendingDeleteNotification.id);
+      setVisibleTickerCount((current) => Math.min(current, nextNotifications.length));
+      return {
+        ...prev,
+        notificationMessages: nextNotifications,
+      };
+    });
     setSavedSection(null);
     setPendingDeleteNotification(null);
     setIsDeletingNotification(false);
@@ -162,6 +195,11 @@ const SiteContentEditor: React.FC = () => {
     }
   };
 
+  const handleLoadMoreNotifications = () => {
+    const total = (draftContent.notificationMessages ?? []).length;
+    setVisibleTickerCount((current) => Math.min(current + TICKER_PAGE_SIZE, total));
+  };
+
   const tabs = [
     { id: 'general', label: 'General Settings' },
     { id: 'hero', label: 'Hero Carousel' },
@@ -169,6 +207,95 @@ const SiteContentEditor: React.FC = () => {
     { id: 'newsletter', label: 'Newsletter' },
     { id: 'notifications', label: 'Ticker Messages' },
   ];
+
+  const activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label ?? 'General Settings';
+
+  const renderMobileContentSheet = () => {
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    return createPortal(
+      <AnimatePresence>
+        {contentMenuOpen && (
+          <>
+            <motion.button
+              type="button"
+              aria-label="Close content sections"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onPointerUp={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setContentMenuOpen(false);
+              }}
+              className="fixed inset-0 z-[120] bg-slate-950/40 backdrop-blur-[3px] lg:hidden"
+            />
+            <div className="fixed inset-x-0 bottom-20 z-[130] flex justify-center px-3 lg:hidden">
+              <motion.div
+                initial={{ opacity: 0, y: 24, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                transition={{ duration: 0.24, ease: 'easeOut' }}
+                onPointerDown={(event) => event.stopPropagation()}
+                className="glass-panel max-h-[72vh] w-full max-w-sm overflow-y-auto rounded-[28px] p-5 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.55)]"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-950 dark:text-slate-50">Manage site content</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Choose a content section</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setContentMenuOpen(false)}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="grid gap-2">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setContentMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left text-sm font-medium transition ${
+                        activeTab === tab.id
+                          ? 'bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950'
+                          : 'bg-white/70 text-slate-700 hover:bg-slate-100 dark:bg-slate-950/40 dark:text-slate-200 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {activeTab === tab.id && <Check className="h-4 w-4" />}
+                    </button>
+                  ))}
+                </div>
+
+                <button type="button" onClick={() => setContentMenuOpen(false)} className="primary-button mt-6 w-full">
+                  Apply section
+                </button>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>,
+      document.body
+    );
+  };
 
   const renderSaveRow = (section: 'general' | 'pages' | 'newsletter' | 'notifications') => (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
@@ -187,29 +314,59 @@ const SiteContentEditor: React.FC = () => {
     </div>
   );
 
+  const notificationMessages = draftContent.notificationMessages ?? [];
+  const visibleNotificationMessages = notificationMessages.slice(0, visibleTickerCount);
+  const canLoadMoreNotifications = visibleTickerCount < notificationMessages.length;
+
   return (
     <div className="space-y-6">
+      {renderMobileContentSheet()}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Site Content Management</h3>
-      </div>
-
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex space-x-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+        <div className="relative z-40" ref={contentMenuRef}>
+          <button
+            type="button"
+            onClick={() => setContentMenuOpen((open) => !open)}
+            className={`inline-flex items-center gap-3 rounded-full border px-4 py-2 text-sm font-medium transition ${
+              contentMenuOpen
+                ? 'border-slate-950 bg-slate-950 text-white dark:border-cyan-400 dark:bg-cyan-400 dark:text-slate-950'
+                : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+            }`}
+          >
+            {activeTabLabel}
+            <ChevronDown className={`h-4 w-4 transition ${contentMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {contentMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute right-0 z-50 mt-3 hidden w-64 overflow-hidden rounded-[24px] border border-slate-200 bg-white p-2 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.45)] lg:block dark:border-slate-700 dark:bg-slate-900"
+              >
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setContentMenuOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between rounded-[18px] px-4 py-3 text-left text-sm font-medium transition ${
+                      activeTab === tab.id
+                        ? 'bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950'
+                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {activeTab === tab.id && <Check className="h-4 w-4" />}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {activeTab === 'general' && (
@@ -553,12 +710,12 @@ const SiteContentEditor: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {draftContent.notificationMessages.length === 0 ? (
+            {notificationMessages.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 px-4 py-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                 No ticker messages yet. The storefront bar stays hidden until you add one.
               </div>
             ) : (
-              draftContent.notificationMessages.map((item) => (
+              visibleNotificationMessages.map((item) => (
                 <div key={item.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     <input
@@ -576,6 +733,18 @@ const SiteContentEditor: React.FC = () => {
               ))
             )}
           </div>
+
+          {canLoadMoreNotifications && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleLoadMoreNotifications}
+                className="text-sm font-semibold text-slate-900 underline-offset-4 transition hover:underline dark:text-slate-100"
+              >
+                Load more ticker messages
+              </button>
+            </div>
+          )}
 
           {renderSaveRow('notifications')}
         </div>

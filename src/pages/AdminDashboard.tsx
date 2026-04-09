@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BarChart3, Brain, Check, ChevronDown, Edit, FolderTree, LogOut, Mail, Menu, MessageSquare, Moon, Package, Plus, Settings, ShoppingCart, Sun, Trash2, Users, X } from 'lucide-react';
+import { BarChart3, Brain, Check, ChevronDown, Edit, FolderTree, LogOut, Mail, Menu, MessageSquare, Moon, Package, Plus, RefreshCw, Settings, ShoppingCart, Sun, Trash2, Users, X } from 'lucide-react';
 import AddProductForm from '../components/admin/AddProductForm';
 import AdminSettingsManager from '../components/admin/AdminSettingsManager';
 import AnalyticsCharts from '../components/admin/AnalyticsCharts';
@@ -25,6 +25,15 @@ interface AdminOrderSummary {
   status?: string;
 }
 
+interface OrderPageResponse {
+  orders: AdminOrderSummary[];
+  nextCursor: string | null;
+}
+
+interface OrderCountResponse {
+  count: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const { user, token, logout, isHydrated } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
@@ -36,6 +45,7 @@ const AdminDashboard: React.FC = () => {
   const [showFloatingMenuButton, setShowFloatingMenuButton] = useState(true);
   const [orderCount, setOrderCount] = useState(0);
   const [newsletterCount, setNewsletterCount] = useState(0);
+  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false);
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
@@ -67,11 +77,29 @@ const AdminDashboard: React.FC = () => {
       }, 3000);
     };
 
+    let scrollFrame: number | null = null;
+    let isScrollScheduled = false;
+
+    const handleScroll = () => {
+      if (isScrollScheduled) {
+        return;
+      }
+      isScrollScheduled = true;
+      scrollFrame = window.requestAnimationFrame(() => {
+        resetHideTimer();
+        isScrollScheduled = false;
+        scrollFrame = null;
+      });
+    };
+
     resetHideTimer();
-    window.addEventListener('scroll', resetHideTimer, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
-      window.removeEventListener('scroll', resetHideTimer);
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollFrame !== null) {
+        window.cancelAnimationFrame(scrollFrame);
+      }
       if (hideButtonTimeout) {
         window.clearTimeout(hideButtonTimeout);
       }
@@ -123,41 +151,34 @@ const AdminDashboard: React.FC = () => {
     };
   }, [activeTab, refreshProducts]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadOverviewCounts = async () => {
-      if (!token) {
-        return;
-      }
-
-      try {
-        const [orders, subscribers] = await Promise.all([
-          apiRequest<Array<unknown>>('/admin/orders', { token }),
-          apiRequest<Array<unknown>>('/admin/newsletter-subscribers', { token }),
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setOrderCount(orders.length);
-        setNewsletterCount(subscribers.length);
-      } catch {
-        if (!isMounted) {
-          return;
-        }
-        setOrderCount(0);
-        setNewsletterCount(0);
-      }
-    };
-
-    void loadOverviewCounts();
-
-    return () => {
-      isMounted = false;
-    };
+  const refreshOverviewCounts = useCallback(async () => {
+    if (!token) {
+      setOrderCount(0);
+      setNewsletterCount(0);
+      return;
+    }
+    setIsRefreshingOverview(true);
+    try {
+      const [ordersResponse, subscribers] = await Promise.all([
+        apiRequest<OrderCountResponse>('/admin/orders/count', { token }),
+        apiRequest<Array<unknown>>('/admin/newsletter-subscribers', { token }),
+      ]);
+      setOrderCount(ordersResponse.count);
+      setNewsletterCount(subscribers.length);
+    } catch {
+      setOrderCount(0);
+      setNewsletterCount(0);
+    } finally {
+      setIsRefreshingOverview(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    if (activeTab !== 'overview') {
+      return;
+    }
+    void refreshOverviewCounts();
+  }, [activeTab, refreshOverviewCounts]);
 
   useEffect(() => {
     if (activeTab !== 'products' || !token) {
@@ -168,7 +189,8 @@ const AdminDashboard: React.FC = () => {
 
     const loadProductSales = async () => {
       try {
-        const orders = await apiRequest<AdminOrderSummary[]>('/admin/orders', { token });
+        const payload = await apiRequest<OrderPageResponse>('/admin/orders?limit=100', { token });
+        const orders = payload.orders;
         if (!isMounted) {
           return;
         }
@@ -386,7 +408,22 @@ const AdminDashboard: React.FC = () => {
       case 'overview':
         return (
           <div className="space-y-6">
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Overview snapshot</h2>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">Refresh data in the overview tab</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void refreshOverviewCounts()}
+            disabled={isRefreshingOverview}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            {isRefreshingOverview ? 'Refreshing...' : 'Refresh overview'}
+          </button>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {stats.map((stat) => (
                 <button
                   key={stat.label}
@@ -663,7 +700,7 @@ const AdminDashboard: React.FC = () => {
 
       case 'settings':
         return (
-          <div className="space-y-6">
+          <div className="section-shell space-y-6">
             <div className="glass-panel rounded-[28px] p-6">
               <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Theme settings</h3>
               <button type="button" onClick={toggleTheme} className="secondary-button mt-5">
@@ -717,8 +754,10 @@ const AdminDashboard: React.FC = () => {
                   key={tab.id}
                   type="button"
                   onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center gap-3 rounded-[22px] px-4 py-3 text-left text-sm font-semibold transition ${
-                    activeTab === tab.id ? 'bg-slate-950 text-white dark:bg-cyan-400 dark:text-slate-950' : 'text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900'
+                  className={`inline-flex items-center gap-3 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    activeTab === tab.id
+                      ? 'border-slate-950 bg-slate-950 text-white dark:border-cyan-400 dark:bg-cyan-400 dark:text-slate-950'
+                      : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
                   }`}
                 >
                   <tab.icon className="h-4 w-4" />

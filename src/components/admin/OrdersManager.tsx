@@ -26,6 +26,11 @@ interface OrderRecord {
   status: string;
 }
 
+interface OrderPageResponse {
+  orders: OrderRecord[];
+  nextCursor: string | null;
+}
+
 const formatOrderAmount = (amount: number, currency: 'NGN' | 'USD') =>
   new Intl.NumberFormat(currency === 'NGN' ? 'en-NG' : 'en-US', {
     style: 'currency',
@@ -67,10 +72,12 @@ const OrdersManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [visibleOrderCount, setVisibleOrderCount] = useState(3);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [pendingDeleteOrderId, setPendingDeleteOrderId] = useState<string | null>(null);
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
 
-  const loadOrders = async () => {
+  const loadOrders = async (cursor?: string, replace = false) => {
     if (!token) {
       return;
     }
@@ -78,8 +85,20 @@ const OrdersManager: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const payload = await apiRequest<OrderRecord[]>('/admin/orders', { token });
-      setOrders(sortOrdersForAdmin(payload));
+      const params = new URLSearchParams({ limit: '20' });
+      if (cursor) {
+        params.set('cursor', cursor);
+      }
+
+      const payload = await apiRequest<OrderPageResponse>(`/admin/orders?${params.toString()}`, {
+        token,
+      });
+      setNextCursor(payload.nextCursor);
+      setHasMoreOrders(Boolean(payload.nextCursor));
+      setOrders((current) => {
+        const combined = replace ? payload.orders : [...current, ...payload.orders];
+        return sortOrdersForAdmin(combined);
+      });
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load orders.');
     } finally {
@@ -88,7 +107,7 @@ const OrdersManager: React.FC = () => {
   };
 
   useEffect(() => {
-    void loadOrders();
+    void loadOrders(undefined, true);
   }, [token]);
 
   useEffect(() => {
@@ -105,7 +124,7 @@ const OrdersManager: React.FC = () => {
         method: 'PUT',
         token,
       });
-      await loadOrders();
+      await loadOrders(undefined, true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to update order status.');
     }
@@ -131,7 +150,7 @@ const OrdersManager: React.FC = () => {
         token,
       });
       setPendingDeleteOrderId(null);
-      await loadOrders();
+      await loadOrders(undefined, true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to delete order.');
     } finally {
@@ -146,7 +165,7 @@ const OrdersManager: React.FC = () => {
           <h3 className="text-2xl font-bold text-slate-950 dark:text-slate-50">Orders</h3>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Track checkout activity and mark completed shipments from one place.</p>
         </div>
-        <button type="button" onClick={() => void loadOrders()} className="secondary-button">
+        <button type="button" onClick={() => void loadOrders(undefined, true)} className="secondary-button">
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh
         </button>
@@ -177,9 +196,9 @@ const OrdersManager: React.FC = () => {
                         <span key={itemName} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                           {itemName}
                         </span>
-                      ))}
-                    </div>
-                  )}
+          ))}
+        </div>
+      )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -225,6 +244,18 @@ const OrdersManager: React.FC = () => {
               </div>
             </article>
           ))}
+          {hasMoreOrders && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => void loadOrders(nextCursor ?? undefined)}
+                className="secondary-button mt-4"
+                disabled={!nextCursor}
+              >
+                Load more orders
+              </button>
+            </div>
+          )}
           {visibleOrderCount < orders.length && (
             <button
               type="button"
