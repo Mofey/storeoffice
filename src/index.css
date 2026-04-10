@@ -107,6 +107,20 @@
   }
 }
 
+@media (max-width: 768px) {
+  .glass-panel {
+    @apply border border-slate-200/70 bg-white/90 dark:border-slate-700 dark:bg-slate-900/90;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.06);
+    backdrop-filter: none;
+  }
+
+  body {
+    background: radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), transparent 28%),
+      radial-gradient(circle at top right, rgba(251, 146, 60, 0.12), transparent 24%),
+      linear-gradient(180deg, rgb(var(--bg)) 0%, rgb(var(--bg)) 100%);
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

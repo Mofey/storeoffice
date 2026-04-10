@@ -39,6 +39,8 @@ const AdminDashboard: React.FC = () => {
   const { isDarkMode, toggleTheme } = useTheme();
   const { products, featuredProducts, newArrivals, refreshProducts, updateProduct, deleteProduct } = useProducts();
   const [activeTab, setActiveTab] = useState('overview');
+  const [featuredOverviewCount, setFeaturedOverviewCount] = useState(Math.min(3, featuredProducts.length));
+  const [newArrivalOverviewCount, setNewArrivalOverviewCount] = useState(Math.min(3, newArrivals.length));
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -259,6 +261,14 @@ const AdminDashboard: React.FC = () => {
 
   const visibleRankedProducts = rankedProducts.slice(0, visibleProductCount);
 
+  useEffect(() => {
+    setFeaturedOverviewCount(Math.min(3, featuredProducts.length));
+  }, [featuredProducts.length]);
+
+  useEffect(() => {
+    setNewArrivalOverviewCount(Math.min(3, newArrivals.length));
+  }, [newArrivals.length]);
+
   if (!isHydrated) {
     return (
       <div className="section-shell py-8">
@@ -446,37 +456,65 @@ const AdminDashboard: React.FC = () => {
               ))}
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-2">
-              <div className="glass-panel rounded-[28px] p-6">
-                <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Featured products</h3>
-                <div className="mt-5 space-y-3">
-                  {featuredProducts.slice(0, 5).map((product) => (
-                    <div key={product.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 dark:bg-slate-900">
-                      <img src={product.image} alt={product.name} className="h-12 w-12 rounded-2xl object-cover" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-950 dark:text-slate-50">{product.name}</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">${product.price.toFixed(2)} • {product.rating.toFixed(1)} stars</p>
+            <div className="grid gap-6 xl:grid-cols-2 items-start">
+                <div className="glass-panel rounded-[28px] p-6">
+                  <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Featured products</h3>
+                  <div className="mt-5 space-y-3">
+                    {featuredProducts.slice(0, featuredOverviewCount).map((product) => (
+                      <div key={product.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 dark:bg-slate-900">
+                        <img src={product.image} alt={product.name} className="h-12 w-12 rounded-2xl object-cover" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-950 dark:text-slate-50">{product.name}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">${product.price.toFixed(2)} • {product.rating.toFixed(1)} stars</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  {featuredOverviewCount < featuredProducts.length && (
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      type="button"
+                      onClick={() =>
+                        setFeaturedOverviewCount((count) =>
+                          Math.min(featuredProducts.length, count + 3)
+                        )
+                      }
+                      className="secondary-button mt-5"
+                    >
+                      Load more featured products
+                    </motion.button>
+                  )}
                 </div>
-              </div>
 
-              <div className="glass-panel rounded-[28px] p-6">
-                <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Recent product momentum</h3>
-                <div className="mt-5 space-y-3">
-                  {newArrivals.slice(0, 5).map((product) => (
-                    <div key={product.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 dark:bg-slate-900">
-                      <img src={product.image} alt={product.name} className="h-12 w-12 rounded-2xl object-cover" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-slate-950 dark:text-slate-50">{product.name}</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{product.category} • ${product.price.toFixed(2)}</p>
+                <div className="glass-panel rounded-[28px] p-6">
+                  <h3 className="text-xl font-bold text-slate-950 dark:text-slate-50">Recent product momentum</h3>
+                  <div className="mt-5 space-y-3">
+                    {newArrivals.slice(0, newArrivalOverviewCount).map((product) => (
+                      <div key={product.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 dark:bg-slate-900">
+                        <img src={product.image} alt={product.name} className="h-12 w-12 rounded-2xl object-cover" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-950 dark:text-slate-50">{product.name}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">{product.category} • ${product.price.toFixed(2)}</p>
+                        </div>
+                        <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">New</span>
                       </div>
-                      <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300">New</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  {newArrivalOverviewCount < newArrivals.length && (
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      type="button"
+                      onClick={() =>
+                        setNewArrivalOverviewCount((count) =>
+                          Math.min(newArrivals.length, count + 3)
+                        )
+                      }
+                      className="secondary-button mt-5"
+                    >
+                      Load more arrivals
+                    </motion.button>
+                  )}
                 </div>
-              </div>
             </div>
           </div>
         );
