@@ -15,8 +15,17 @@ interface NotificationMessage {
   text: string;
 }
 
+interface ShopperStayCard {
+  id: number;
+  title: string;
+  value: string;
+  body: string;
+}
+
 interface SiteContent {
   heroCarousel: CarouselItem[];
+  shopperStayHeading: string;
+  shopperStayCards: ShopperStayCard[];
   notificationMessages: NotificationMessage[];
   siteTitle: string;
   siteDescription: string;
@@ -50,6 +59,8 @@ interface SiteContentContextType {
 
 const fallbackContent: SiteContent = {
   heroCarousel: [],
+  shopperStayHeading: '',
+  shopperStayCards: [],
   notificationMessages: [],
   siteTitle: '',
   siteDescription: '',

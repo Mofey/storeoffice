@@ -6,6 +6,7 @@ import { useSiteContent } from '../../contexts/SiteContentContext';
 import ConfirmDialog from './ConfirmDialog';
 
 const TICKER_PAGE_SIZE = 3;
+const SHOPPER_STAY_PAGE_SIZE = 3;
 
 const SiteContentEditor: React.FC = () => {
   const { content, updateContent, updateCarouselItem, addCarouselItem, deleteCarouselItem } = useSiteContent();
@@ -28,6 +29,7 @@ const SiteContentEditor: React.FC = () => {
   const [isDeletingCarouselItem, setIsDeletingCarouselItem] = useState(false);
   const [isDeletingNotification, setIsDeletingNotification] = useState(false);
   const [visibleTickerCount, setVisibleTickerCount] = useState(TICKER_PAGE_SIZE);
+  const [visibleShopperStayCount, setVisibleShopperStayCount] = useState(SHOPPER_STAY_PAGE_SIZE);
 
   useEffect(() => {
     setDraftContent(content);
@@ -36,6 +38,10 @@ const SiteContentEditor: React.FC = () => {
   useEffect(() => {
     setVisibleTickerCount(TICKER_PAGE_SIZE);
   }, [content?.notificationMessages?.length]);
+
+  useEffect(() => {
+    setVisibleShopperStayCount(SHOPPER_STAY_PAGE_SIZE);
+  }, [content?.shopperStayCards?.length]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -125,6 +131,48 @@ const SiteContentEditor: React.FC = () => {
     setPendingDeleteNotification(notification);
   };
 
+  const handleAddShopperStayCard = () => {
+    const nextId =
+      draftContent.shopperStayCards.length > 0
+        ? Math.max(...draftContent.shopperStayCards.map((item) => item.id)) + 1
+        : 1;
+
+    setDraftContent((prev) => ({
+      ...prev,
+      shopperStayCards: [
+        ...prev.shopperStayCards,
+        {
+          id: nextId,
+          title: '',
+          value: '',
+          body: '',
+        },
+      ],
+    }));
+    setVisibleShopperStayCount((current) => current + 1);
+    setSavedSection(null);
+  };
+
+  const handleShopperStayChange = (id: number, field: 'title' | 'value' | 'body', value: string) => {
+    setDraftContent((prev) => ({
+      ...prev,
+      shopperStayCards: prev.shopperStayCards.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+    }));
+    setSavedSection(null);
+  };
+
+  const handleDeleteShopperStayCard = (id: number) => {
+    setDraftContent((prev) => {
+      const nextCards = prev.shopperStayCards.filter((item) => item.id !== id);
+      setVisibleShopperStayCount((current) => Math.min(current, nextCards.length));
+      return {
+        ...prev,
+        shopperStayCards: nextCards,
+      };
+    });
+    setSavedSection(null);
+  };
+
   const confirmDeleteNotification = async () => {
     if (!pendingDeleteNotification) {
       return;
@@ -144,7 +192,7 @@ const SiteContentEditor: React.FC = () => {
     setIsDeletingNotification(false);
   };
 
-  const handleSaveSection = async (section: 'general' | 'pages' | 'newsletter' | 'notifications') => {
+  const handleSaveSection = async (section: 'general' | 'pages' | 'newsletter' | 'notifications' | 'shopperStay') => {
     setSavingSection(section);
     setSavedSection(null);
 
@@ -189,6 +237,20 @@ const SiteContentEditor: React.FC = () => {
         });
       }
 
+      if (section === 'shopperStay') {
+        await updateContent({
+          shopperStayHeading: draftContent.shopperStayHeading.trim() || 'Why shoppers stay',
+          shopperStayCards: draftContent.shopperStayCards
+            .map((item) => ({
+              ...item,
+              title: item.title.trim(),
+              value: item.value.trim(),
+              body: item.body.trim(),
+            }))
+            .filter((item) => item.title || item.value || item.body),
+        });
+      }
+
       setSavedSection(section);
     } finally {
       setSavingSection(null);
@@ -200,9 +262,15 @@ const SiteContentEditor: React.FC = () => {
     setVisibleTickerCount((current) => Math.min(current + TICKER_PAGE_SIZE, total));
   };
 
+  const handleLoadMoreShopperStayCards = () => {
+    const total = (draftContent.shopperStayCards ?? []).length;
+    setVisibleShopperStayCount((current) => Math.min(current + SHOPPER_STAY_PAGE_SIZE, total));
+  };
+
   const tabs = [
     { id: 'general', label: 'General Settings' },
     { id: 'hero', label: 'Hero Carousel' },
+    { id: 'shopperStay', label: 'Why Shoppers Stay' },
     { id: 'pages', label: 'Page Content' },
     { id: 'newsletter', label: 'Newsletter' },
     { id: 'notifications', label: 'Ticker Messages' },
@@ -297,7 +365,7 @@ const SiteContentEditor: React.FC = () => {
     );
   };
 
-  const renderSaveRow = (section: 'general' | 'pages' | 'newsletter' | 'notifications') => (
+  const renderSaveRow = (section: 'general' | 'pages' | 'newsletter' | 'notifications' | 'shopperStay') => (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
       <p className="text-sm text-gray-500 dark:text-gray-400">
         {savedSection === section ? 'Changes saved.' : 'Changes are only saved when you click the button.'}
@@ -317,6 +385,9 @@ const SiteContentEditor: React.FC = () => {
   const notificationMessages = draftContent.notificationMessages ?? [];
   const visibleNotificationMessages = notificationMessages.slice(0, visibleTickerCount);
   const canLoadMoreNotifications = visibleTickerCount < notificationMessages.length;
+  const shopperStayCards = draftContent.shopperStayCards ?? [];
+  const visibleShopperStayCards = shopperStayCards.slice(0, visibleShopperStayCount);
+  const canLoadMoreShopperStayCards = visibleShopperStayCount < shopperStayCards.length;
 
   return (
     <div className="space-y-6">
@@ -597,6 +668,106 @@ const SiteContentEditor: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'shopperStay' && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg space-y-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 className="text-md font-medium text-gray-900 dark:text-white">Why shoppers stay cards</h4>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Edit the title, value badge, and supporting copy shown inside the storefront hero overlay.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddShopperStayCard}
+              className="inline-flex items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-cyan-500 dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add card
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Section heading</label>
+            <input
+              type="text"
+              value={draftContent.shopperStayHeading}
+              onChange={(e) => handleDraftChange('shopperStayHeading', e.target.value)}
+              placeholder="Why shoppers stay"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          <div className="space-y-4">
+            {shopperStayCards.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 px-4 py-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                No shopper-stay cards yet. Add one to show it in the storefront hero section.
+              </div>
+            ) : (
+              visibleShopperStayCards.map((item) => (
+                <div key={item.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Card {item.id}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteShopperStayCard(item.id)}
+                      className="secondary-button text-rose-600 hover:text-rose-700 dark:text-rose-300"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Card title</label>
+                      <input
+                        type="text"
+                        value={item.title}
+                        onChange={(e) => handleShopperStayChange(item.id, 'title', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Value badge</label>
+                      <input
+                        type="text"
+                        value={item.value}
+                        onChange={(e) => handleShopperStayChange(item.id, 'value', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Supporting text</label>
+                      <textarea
+                        value={item.body}
+                        onChange={(e) => handleShopperStayChange(item.id, 'body', e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {canLoadMoreShopperStayCards && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleLoadMoreShopperStayCards}
+                className="text-sm font-semibold text-slate-900 underline-offset-4 transition hover:underline dark:text-slate-100"
+              >
+                Load more shopper-stay cards
+              </button>
+            </div>
+          )}
+
+          {renderSaveRow('shopperStay')}
         </div>
       )}
 

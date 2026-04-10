@@ -6,6 +6,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Brain,
+  Download,
   Layers3,
   LineChart,
   Loader2,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { downloadAnalyticsPdf } from '../../lib/analyticsPdf';
 
 type AnalyticsTab = 'forecast' | 'catalog' | 'customers';
 
@@ -299,6 +301,7 @@ const AnalyticsCharts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
   const [visibleCategoryCount, setVisibleCategoryCount] = useState(3);
   const [visibleAnomalyCount, setVisibleAnomalyCount] = useState(3);
   const [visibleTopProductCount, setVisibleTopProductCount] = useState(5);
@@ -395,6 +398,19 @@ const AnalyticsCharts: React.FC = () => {
     setVisibleTopProductCount(5);
   }, [activeTab, refreshKey, dashboard]);
 
+  const handleExport = async () => {
+    if (!dashboard) {
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      downloadAnalyticsPdf(dashboard);
+    } finally {
+      window.setTimeout(() => setIsExporting(false), 400);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <section className="glass-panel rounded-[28px] p-6">
@@ -406,6 +422,15 @@ const AnalyticsCharts: React.FC = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={!dashboard || loading || Boolean(error) || isExporting}
+              className="secondary-button disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              {isExporting ? 'Preparing PDF' : 'Export executive PDF'}
+            </button>
             <button type="button" onClick={() => setRefreshKey((value) => value + 1)} className="secondary-button">
               <RefreshCcw className="mr-2 h-4 w-4" />
               Refresh data

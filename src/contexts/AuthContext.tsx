@@ -15,6 +15,10 @@ interface AuthResponse {
   user: User;
 }
 
+interface StoredAuth extends AuthResponse {
+  savedAt?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -28,6 +32,7 @@ interface AuthContextType {
 }
 
 const STORAGE_KEY = 'ecommerce-admin-auth';
+const REFRESH_BUFFER_MS = 60_000;
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
@@ -46,61 +51,101 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isHydrated, setIsHydrated] = useState(false);
   const refreshTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as AuthResponse;
-        setUser(parsed.user);
-        setToken(parsed.token);
-        setRefreshToken(parsed.refreshToken);
-        setTokenExpiresAt(parsed.tokenExpiresAt);
-        sessionStorage.setItem(STORAGE_KEY, saved);
-      }
-    } catch {
-      sessionStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(STORAGE_KEY);
-    } finally {
-      setIsHydrated(true);
-    }
+  const clearAuth = useCallback(() => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+    setUser(null);
+    setToken(null);
+    setRefreshToken(null);
+    setTokenExpiresAt(null);
   }, []);
 
-  const persistAuth = useCallback((payload: AuthResponse | null) => {
-    if (!payload) {
-      sessionStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(STORAGE_KEY);
-      setUser(null);
-      setToken(null);
-      setRefreshToken(null);
-      setTokenExpiresAt(null);
-      return;
-    }
-
-    const serializedPayload = JSON.stringify(payload);
+  const applyAuth = useCallback((payload: AuthResponse) => {
+    const serializedPayload = JSON.stringify({
+      ...payload,
+      savedAt: new Date().toISOString(),
+    } satisfies StoredAuth);
+    localStorage.setItem(STORAGE_KEY, serializedPayload);
     sessionStorage.setItem(STORAGE_KEY, serializedPayload);
-    localStorage.removeItem(STORAGE_KEY);
     setUser(payload.user);
     setToken(payload.token);
     setRefreshToken(payload.refreshToken);
     setTokenExpiresAt(payload.tokenExpiresAt);
   }, []);
 
+  const requestSessionRefresh = useCallback(
+    async (refreshTokenValue: string) => {
+      const payload = await apiRequest<AuthResponse>('/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken: refreshTokenValue }),
+      });
+      applyAuth(payload);
+      return payload;
+    },
+    [applyAuth]
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const restoreAuth = async () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
+        if (!saved) {
+          return;
+        }
+
+        const parsed = JSON.parse(saved) as StoredAuth;
+        if (!parsed.refreshToken) {
+          clearAuth();
+          return;
+        }
+
+        const expiresAtMs = parsed.tokenExpiresAt ? new Date(parsed.tokenExpiresAt).getTime() : 0;
+        const shouldRefresh = !parsed.token || !expiresAtMs || expiresAtMs - Date.now() <= REFRESH_BUFFER_MS;
+
+        if (shouldRefresh) {
+          try {
+            await requestSessionRefresh(parsed.refreshToken);
+          } catch {
+            clearAuth();
+          }
+          return;
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        applyAuth(parsed);
+      } catch {
+        clearAuth();
+      } finally {
+        if (isMounted) {
+          setIsHydrated(true);
+        }
+      }
+    };
+
+    void restoreAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [applyAuth, clearAuth, requestSessionRefresh]);
+
   const refreshSession = useCallback(async () => {
     if (!refreshToken) {
-      persistAuth(null);
+      clearAuth();
       return;
     }
 
     try {
-      const payload = await apiRequest<AuthResponse>('/auth/refresh', {
-        method: 'POST',
-        body: JSON.stringify({ refreshToken }),
-      });
-      persistAuth(payload);
+      await requestSessionRefresh(refreshToken);
     } catch {
-      persistAuth(null);
+      clearAuth();
     }
-  }, [persistAuth, refreshToken]);
+  }, [clearAuth, refreshToken, requestSessionRefresh]);
 
   useEffect(() => {
     if (!token || !tokenExpiresAt || !refreshToken) {
@@ -108,7 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const expiresMs = new Date(tokenExpiresAt).getTime();
     const now = Date.now();
-    const delay = Math.max(expiresMs - now - 60_000, 0);
+    const delay = Math.max(expiresMs - now - REFRESH_BUFFER_MS, 0);
     if (refreshTimerRef.current) {
       window.clearTimeout(refreshTimerRef.current);
     }
@@ -126,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [token, tokenExpiresAt, refreshToken, refreshSession]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       const payload = await apiRequest<AuthResponse>('/auth/login', {
         method: 'POST',
@@ -135,12 +180,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!payload.user.isAdmin) {
         return false;
       }
-      persistAuth(payload);
+      applyAuth(payload);
       return true;
     } catch {
       return false;
     }
-  };
+  }, [applyAuth]);
 
   const setSessionUser = (nextUser: User) => {
     if (!token || !refreshToken || !tokenExpiresAt) {
@@ -148,7 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    persistAuth({
+    applyAuth({
       token,
       refreshToken,
       tokenExpiresAt,
@@ -163,7 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         refreshToken,
         login,
-        logout: () => persistAuth(null),
+        logout: clearAuth,
         isAuthenticated: Boolean(user && token),
         isHydrated,
         setSessionUser,
