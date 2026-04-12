@@ -1,15 +1,21 @@
 const isLoopbackHost = (value: string) => value === '127.0.0.1' || value === 'localhost';
 
 const resolveApiBaseUrl = () => {
-  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api';
-
   if (typeof window === 'undefined') {
-    return configuredBaseUrl;
+    return import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api';
+  }
+
+  const currentHost = window.location.hostname;
+  const configuredBaseUrl =
+    import.meta.env.VITE_API_BASE_URL ??
+    (isLoopbackHost(currentHost) ? 'http://127.0.0.1:8000/api' : '/api');
+
+  if (configuredBaseUrl.startsWith('/')) {
+    return configuredBaseUrl.replace(/\/$/, '');
   }
 
   try {
     const resolvedUrl = new URL(configuredBaseUrl);
-    const currentHost = window.location.hostname;
 
     if (isLoopbackHost(resolvedUrl.hostname) && isLoopbackHost(currentHost) && resolvedUrl.hostname !== currentHost) {
       resolvedUrl.hostname = currentHost;

@@ -70,10 +70,10 @@ const fallbackContent: SiteContent = {
   footerLocation: '',
   privacyLabel: 'Privacy',
   privacyContent:
-    'EShop collects the information needed to run this storefront, including account details, verified email addresses, order activity, newsletter subscriptions, and product reviews. We use that data to authenticate customers, process purchases, send requested emails, and improve the experience through analytics and merchandising tools.',
+    'EShop collects the information needed to run this storefront, including account details, verified email addresses, order activity, newsletter subscriptions, and product reviews. We also use essential cookies and secure session technologies to keep customers signed in, restore sessions after refresh, protect account access, and support authenticated storefront features. We use that data to authenticate customers, process purchases, send requested emails, and improve the experience through analytics and merchandising tools.',
   termsLabel: 'Terms',
   termsContent:
-    'By using EShop, you agree to provide accurate account and checkout information, use the storefront lawfully, and accept that products, pricing, availability, reviews, and promotions may be updated by the business through the admin dashboard.',
+    'By using EShop, you agree to provide accurate account and checkout information, use the storefront lawfully, and accept that essential cookies and secure session technologies are required for login-protected features to work correctly. You also accept that products, pricing, availability, reviews, and promotions may be updated by the business.',
   newsletterTitle: '',
   newsletterSubtitle: '',
   newsletterBackground: '',
