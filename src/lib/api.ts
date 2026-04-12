@@ -6,9 +6,10 @@ const resolveApiBaseUrl = () => {
   }
 
   const currentHost = window.location.hostname;
+  const prefersSameOriginProxy = !isLoopbackHost(currentHost);
   const configuredBaseUrl =
     import.meta.env.VITE_API_BASE_URL ??
-    (isLoopbackHost(currentHost) ? 'http://127.0.0.1:8000/api' : '/api');
+    (prefersSameOriginProxy ? '/api' : 'http://127.0.0.1:8000/api');
 
   if (configuredBaseUrl.startsWith('/')) {
     return configuredBaseUrl.replace(/\/$/, '');
@@ -16,6 +17,10 @@ const resolveApiBaseUrl = () => {
 
   try {
     const resolvedUrl = new URL(configuredBaseUrl);
+
+    if (prefersSameOriginProxy && resolvedUrl.hostname !== currentHost) {
+      return '/api';
+    }
 
     if (isLoopbackHost(resolvedUrl.hostname) && isLoopbackHost(currentHost) && resolvedUrl.hostname !== currentHost) {
       resolvedUrl.hostname = currentHost;
