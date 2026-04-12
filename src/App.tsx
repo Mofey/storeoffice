@@ -5,8 +5,30 @@ import { ProductProvider } from './contexts/ProductContext';
 import { SiteContentProvider } from './contexts/SiteContentContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ScrollToTop from './components/ScrollToTop';
+import SessionRestoreSplash from './components/SessionRestoreSplash';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
+import { useAuth } from './contexts/AuthContext';
+
+const AppShell: React.FC = () => {
+  const { isHydrated } = useAuth();
+
+  if (!isHydrated) {
+    return <SessionRestoreSplash />;
+  }
+
+  return (
+    <Router>
+      <ScrollToTop />
+      <div className="app-shell min-h-screen">
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<AdminDashboard />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+};
 
 function App() {
   return (
@@ -14,15 +36,7 @@ function App() {
       <AuthProvider>
         <ProductProvider>
           <SiteContentProvider>
-            <Router>
-              <ScrollToTop />
-              <div className="app-shell min-h-screen">
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="*" element={<AdminDashboard />} />
-                </Routes>
-              </div>
-            </Router>
+            <AppShell />
           </SiteContentProvider>
         </ProductProvider>
       </AuthProvider>

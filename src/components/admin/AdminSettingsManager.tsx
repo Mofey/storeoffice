@@ -12,7 +12,6 @@ interface AdminRecord {
   isUltimateAdmin: boolean;
   emailVerified: boolean;
   isSuspended: boolean;
-  passwordHash: string;
   createdAt?: string | null;
 }
 

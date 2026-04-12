@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -9,8 +9,12 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { isAuthenticated, login, user } = useAuth();
   const navigate = useNavigate();
+
+  if (isAuthenticated && user?.isAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

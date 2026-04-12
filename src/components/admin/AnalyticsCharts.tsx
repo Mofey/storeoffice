@@ -185,27 +185,27 @@ const RevenueForecastChart: React.FC<{ data: RevenuePoint[] }> = ({ data }) => {
 
       {hoveredIndex !== null && (
         <div className="mt-4 rounded-2xl bg-slate-950 px-4 py-4 text-sm text-white dark:bg-slate-900">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0 rounded-xl bg-white/5 px-3 py-2.5">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Month</p>
+              <p className="whitespace-nowrap text-[9px] uppercase tracking-[0.1em] text-slate-400">Month</p>
               <p className="mt-1.5 font-semibold tracking-[0.02em] text-white">{data[hoveredIndex].month}</p>
             </div>
             <div className="min-w-0 rounded-xl bg-white/5 px-3 py-2.5">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Actual</p>
+              <p className="whitespace-nowrap text-[9px] uppercase tracking-[0.1em] text-slate-400">Actual</p>
               <p className="mt-1.5 inline-flex max-w-full items-center gap-2 font-semibold text-white">
                 <span className="h-2.5 w-2.5 rounded-full bg-slate-200 dark:bg-cyan-300" />
                 <span className="truncate">{formatCurrency(data[hoveredIndex].actual)}</span>
               </p>
             </div>
             <div className="min-w-0 rounded-xl bg-white/5 px-3 py-2.5">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Predicted</p>
+              <p className="whitespace-nowrap text-[9px] uppercase tracking-[0.1em] text-slate-400">Predicted</p>
               <p className="mt-1.5 inline-flex max-w-full items-center gap-2 font-semibold text-white">
                 <span className="h-2.5 w-2.5 rounded-full bg-orange-500" />
                 <span className="truncate">{formatCurrency(data[hoveredIndex].predicted)}</span>
               </p>
             </div>
             <div className="min-w-0 rounded-xl bg-white/5 px-3 py-2.5">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Confidence</p>
+              <p className="whitespace-nowrap text-[9px] uppercase tracking-[0.08em] text-slate-400">Confidence</p>
               <p className="mt-1.5 font-semibold text-slate-200">
                 {Math.round(data[hoveredIndex].confidence * 100)}%
               </p>

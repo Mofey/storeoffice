@@ -19,19 +19,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { apiRequest } from '../lib/api';
 
-interface AdminOrderSummary {
-  items: Array<{ productId: number; quantity: number }>;
-  paymentStatus?: string;
-  status?: string;
-}
-
-interface OrderPageResponse {
-  orders: AdminOrderSummary[];
-  nextCursor: string | null;
-}
-
 interface OrderCountResponse {
   count: number;
+}
+
+interface ProductSalesSummary {
+  productId: number;
+  unitsSold: number;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -191,26 +185,13 @@ const AdminDashboard: React.FC = () => {
 
     const loadProductSales = async () => {
       try {
-        const payload = await apiRequest<OrderPageResponse>('/admin/orders?limit=100', { token });
-        const orders = payload.orders;
+        const payload = await apiRequest<ProductSalesSummary[]>('/admin/product-sales?limit=500', { token });
         if (!isMounted) {
           return;
         }
 
-        const nextSalesMap = orders.reduce<Record<number, number>>((accumulator, order) => {
-          const isCountedOrder =
-            order.paymentStatus === 'paid' ||
-            order.status === 'processing' ||
-            order.status === 'completed' ||
-            order.status === 'inventory_review';
-
-          if (!isCountedOrder) {
-            return accumulator;
-          }
-
-          order.items.forEach((item) => {
-            accumulator[item.productId] = (accumulator[item.productId] ?? 0) + item.quantity;
-          });
+        const nextSalesMap = payload.reduce<Record<number, number>>((accumulator, item) => {
+          accumulator[item.productId] = item.unitsSold;
           return accumulator;
         }, {});
 

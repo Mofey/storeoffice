@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useCallback, useState } from 'react';
-import { apiRequest } from '../lib/api';
+import { apiRequest, apiRequestWithRetry } from '../lib/api';
 import { useAuth } from './AuthContext';
 
 export interface Category {
@@ -27,7 +27,12 @@ export interface Product {
 interface CatalogBootstrapResponse {
   products: Product[];
   categories: Category[];
+  nextCursor?: number | null;
   catalogVersion?: string | null;
+}
+
+interface CatalogVersionResponse {
+  version: string | null;
 }
 
 const normalizeProduct = (product: Product): Product => {
@@ -75,16 +80,68 @@ export const ProductProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { token } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [catalogVersion, setCatalogVersion] = useState<string | null>(null);
+
+  const loadRemainingProducts = useCallback(async (cursor: number | null | undefined, seedProducts: Product[]) => {
+    let nextCursor = cursor ?? null;
+    let allProducts = [...seedProducts];
+
+    while (nextCursor !== null) {
+      const page = await apiRequestWithRetry<{ products: Product[]; nextCursor: number | null }>(`/products?limit=200&cursor=${nextCursor}`);
+      allProducts = [...allProducts, ...page.products.map(normalizeProduct)];
+      nextCursor = page.nextCursor ?? null;
+      setProducts(allProducts);
+    }
+  }, []);
 
   const refreshProducts = useCallback(async () => {
-    const response = await apiRequest<CatalogBootstrapResponse>('/catalog/bootstrap');
-    setProducts(response.products.map(normalizeProduct));
+    const response = await apiRequestWithRetry<CatalogBootstrapResponse>('/catalog/bootstrap');
+    const normalizedProducts = response.products.map(normalizeProduct);
+    setProducts(normalizedProducts);
     setCategories(response.categories);
-  }, []);
+    setCatalogVersion(response.catalogVersion ?? null);
+    if (response.nextCursor !== null && response.nextCursor !== undefined) {
+      void loadRemainingProducts(response.nextCursor, normalizedProducts);
+    }
+  }, [loadRemainingProducts]);
 
   useEffect(() => {
     void refreshProducts();
-  }, []);
+  }, [refreshProducts]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncIfChanged = async () => {
+      try {
+        const response = await apiRequest<CatalogVersionResponse>('/catalog/version');
+        if (!isMounted) {
+          return;
+        }
+        if (response.version && response.version !== catalogVersion) {
+          await refreshProducts();
+        }
+      } catch {
+        // Ignore polling failures
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void syncIfChanged();
+    }, 15000);
+
+    const handleFocus = () => {
+      void syncIfChanged();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [catalogVersion, refreshProducts]);
 
   const addProduct = async (product: Omit<Product, 'id'>) => {
     const createdProduct = await apiRequest<Product>('/products', {

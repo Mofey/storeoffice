@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { apiRequest } from '../lib/api';
+import { SESSION_TOKEN_SENTINEL, apiRequest } from '../lib/api';
 
 export interface User {
   id: string;
@@ -15,8 +15,8 @@ interface AuthResponse {
   user: User;
 }
 
-interface StoredAuth extends AuthResponse {
-  savedAt?: string;
+interface MessageResponse {
+  message: string;
 }
 
 interface AuthContextType {
@@ -24,14 +24,13 @@ interface AuthContextType {
   token: string | null;
   refreshToken: string | null;
   login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
   isHydrated: boolean;
   setSessionUser: (nextUser: User) => void;
   refreshSession: () => Promise<void>;
 }
 
-const STORAGE_KEY = 'ecommerce-admin-auth';
 const REFRESH_BUFFER_MS = 60_000;
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -52,8 +51,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshTimerRef = useRef<number | null>(null);
 
   const clearAuth = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(STORAGE_KEY);
     setUser(null);
     setToken(null);
     setRefreshToken(null);
@@ -61,65 +58,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const applyAuth = useCallback((payload: AuthResponse) => {
-    const serializedPayload = JSON.stringify({
-      ...payload,
-      savedAt: new Date().toISOString(),
-    } satisfies StoredAuth);
-    localStorage.setItem(STORAGE_KEY, serializedPayload);
-    sessionStorage.setItem(STORAGE_KEY, serializedPayload);
     setUser(payload.user);
-    setToken(payload.token);
-    setRefreshToken(payload.refreshToken);
+    setToken(SESSION_TOKEN_SENTINEL);
+    setRefreshToken(SESSION_TOKEN_SENTINEL);
     setTokenExpiresAt(payload.tokenExpiresAt);
   }, []);
 
-  const requestSessionRefresh = useCallback(
-    async (refreshTokenValue: string) => {
-      const payload = await apiRequest<AuthResponse>('/auth/refresh', {
-        method: 'POST',
-        body: JSON.stringify({ refreshToken: refreshTokenValue }),
-      });
-      applyAuth(payload);
-      return payload;
-    },
-    [applyAuth]
-  );
+  const requestExistingSession = useCallback(async () => {
+    const payload = await apiRequest<AuthResponse>('/auth/session');
+    applyAuth(payload);
+    return payload;
+  }, [applyAuth]);
+
+  const requestSessionRefresh = useCallback(async () => {
+    const payload = await apiRequest<AuthResponse>('/auth/refresh', {
+      method: 'POST',
+    });
+    applyAuth(payload);
+    return payload;
+  }, [applyAuth]);
 
   useEffect(() => {
     let isMounted = true;
 
     const restoreAuth = async () => {
       try {
-        const saved = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
-        if (!saved) {
-          return;
-        }
-
-        const parsed = JSON.parse(saved) as StoredAuth;
-        if (!parsed.refreshToken) {
+        const payload = await requestExistingSession();
+        if (payload.user.isAdmin === false) {
           clearAuth();
-          return;
         }
-
-        const expiresAtMs = parsed.tokenExpiresAt ? new Date(parsed.tokenExpiresAt).getTime() : 0;
-        const shouldRefresh = !parsed.token || !expiresAtMs || expiresAtMs - Date.now() <= REFRESH_BUFFER_MS;
-
-        if (shouldRefresh) {
-          try {
-            await requestSessionRefresh(parsed.refreshToken);
-          } catch {
+      } catch {
+        try {
+          const payload = await requestSessionRefresh();
+          if (payload.user.isAdmin === false) {
             clearAuth();
           }
-          return;
+        } catch {
+          clearAuth();
         }
-
-        if (!isMounted) {
-          return;
-        }
-
-        applyAuth(parsed);
-      } catch {
-        clearAuth();
       } finally {
         if (isMounted) {
           setIsHydrated(true);
@@ -132,23 +108,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       isMounted = false;
     };
-  }, [applyAuth, clearAuth, requestSessionRefresh]);
+  }, [clearAuth, requestExistingSession, requestSessionRefresh]);
 
   const refreshSession = useCallback(async () => {
-    if (!refreshToken) {
-      clearAuth();
-      return;
-    }
-
     try {
-      await requestSessionRefresh(refreshToken);
+      const payload = await requestSessionRefresh();
+      if (!payload.user.isAdmin) {
+        clearAuth();
+      }
     } catch {
       clearAuth();
     }
-  }, [clearAuth, refreshToken, requestSessionRefresh]);
+  }, [clearAuth, requestSessionRefresh]);
 
   useEffect(() => {
-    if (!token || !tokenExpiresAt || !refreshToken) {
+    if (!token || !tokenExpiresAt) {
       return;
     }
     const expiresMs = new Date(tokenExpiresAt).getTime();
@@ -169,7 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.clearTimeout(refreshTimerRef.current);
       }
     };
-  }, [token, tokenExpiresAt, refreshToken, refreshSession]);
+  }, [token, tokenExpiresAt, refreshSession]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -178,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email, password }),
       });
       if (!payload.user.isAdmin) {
+        clearAuth();
         return false;
       }
       applyAuth(payload);
@@ -185,20 +160,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       return false;
     }
-  }, [applyAuth]);
+  }, [applyAuth, clearAuth]);
+
+  const logout = useCallback(async () => {
+    try {
+      await apiRequest<MessageResponse>('/auth/logout', {
+        method: 'POST',
+      });
+    } catch {
+      // Best-effort server logout; client state is still cleared.
+    } finally {
+      clearAuth();
+    }
+  }, [clearAuth]);
 
   const setSessionUser = (nextUser: User) => {
-    if (!token || !refreshToken || !tokenExpiresAt) {
-      setUser(nextUser);
-      return;
-    }
-
-    applyAuth({
-      token,
-      refreshToken,
-      tokenExpiresAt,
-      user: nextUser,
-    });
+    setUser(nextUser);
   };
 
   return (
@@ -208,7 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         refreshToken,
         login,
-        logout: clearAuth,
+        logout,
         isAuthenticated: Boolean(user && token),
         isHydrated,
         setSessionUser,

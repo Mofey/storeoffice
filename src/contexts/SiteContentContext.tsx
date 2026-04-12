@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { apiRequest } from '../lib/api';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { apiRequest, apiRequestWithRetry } from '../lib/api';
 import { useAuth } from './AuthContext';
 
 interface CarouselItem {
@@ -85,6 +85,44 @@ const fallbackContent: SiteContent = {
   featuredProductsSubtitle: '',
 };
 
+interface CatalogBootstrapResponse {
+  content: SiteContent;
+  catalogVersion?: string | null;
+}
+
+interface CatalogVersionResponse {
+  version: string | null;
+}
+
+const CONTENT_CACHE_KEY = 'eshop-office-site-content-cache';
+
+const loadCachedContent = (): SiteContent | null => {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return null;
+  }
+  try {
+    const cached = localStorage.getItem(CONTENT_CACHE_KEY);
+    if (!cached) {
+      return null;
+    }
+    return mergeContentWithDefaults(JSON.parse(cached) as Partial<SiteContent>);
+  } catch {
+    localStorage.removeItem(CONTENT_CACHE_KEY);
+    return null;
+  }
+};
+
+const persistContent = (content: SiteContent) => {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return;
+  }
+  try {
+    localStorage.setItem(CONTENT_CACHE_KEY, JSON.stringify(content));
+  } catch {
+    // Ignore storage issues
+  }
+};
+
 const mergeContentWithDefaults = (content: Partial<SiteContent>): SiteContent => ({
   ...fallbackContent,
   ...content,
@@ -107,15 +145,71 @@ export const useSiteContent = () => {
 export const SiteContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth();
   const [content, setContent] = useState<SiteContent>(fallbackContent);
+  const [catalogVersion, setCatalogVersion] = useState<string | null>(null);
 
-  const refreshContent = async () => {
-    const response = await apiRequest<SiteContent>('/content');
-    setContent(mergeContentWithDefaults(response));
-  };
+  const applyContent = useCallback((nextContent: Partial<SiteContent>, nextVersion?: string | null) => {
+    const merged = mergeContentWithDefaults(nextContent);
+    setContent(merged);
+    persistContent(merged);
+    if (nextVersion !== undefined) {
+      setCatalogVersion(nextVersion ?? null);
+    }
+  }, []);
+
+  const refreshContent = useCallback(async () => {
+    try {
+      const response = await apiRequestWithRetry<SiteContent>('/content');
+      applyContent(response);
+    } catch {
+      const bootstrap = await apiRequestWithRetry<CatalogBootstrapResponse>('/catalog/bootstrap');
+      applyContent(bootstrap.content, bootstrap.catalogVersion ?? null);
+    }
+  }, [applyContent]);
 
   useEffect(() => {
+    const cached = loadCachedContent();
+    if (cached) {
+      setContent(cached);
+    }
     void refreshContent();
-  }, []);
+  }, [refreshContent]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncIfChanged = async () => {
+      try {
+        const response = await apiRequest<CatalogVersionResponse>('/catalog/version');
+        if (!isMounted) {
+          return;
+        }
+        if (response.version && response.version !== catalogVersion) {
+          await refreshContent();
+          setCatalogVersion(response.version);
+        }
+      } catch {
+        // Ignore polling failures
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void syncIfChanged();
+    }, 15000);
+
+    const handleFocus = () => {
+      void syncIfChanged();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [catalogVersion, refreshContent]);
 
   const saveContent = async (nextContent: SiteContent) => {
     const response = await apiRequest<SiteContent>('/content', {
@@ -123,7 +217,7 @@ export const SiteContentProvider: React.FC<{ children: React.ReactNode }> = ({ c
       token,
       body: JSON.stringify(nextContent),
     });
-    setContent(mergeContentWithDefaults(response));
+    applyContent(response);
   };
 
   const updateContent = async (updates: Partial<SiteContent>) => {

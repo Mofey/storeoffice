@@ -11,7 +11,6 @@ interface UserRecord {
   isAdmin: boolean;
   emailVerified: boolean;
   isSuspended: boolean;
-  passwordHash: string;
   createdAt?: string | null;
 }
 
@@ -166,7 +165,7 @@ const UsersManager: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h3 className="text-2xl font-bold text-slate-950 dark:text-slate-50">Users</h3>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Inspect user records, review stored password hashes, suspend access, and send direct emails.</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Inspect user records, suspend access when needed, and send direct emails to selected customers.</p>
         </div>
         <button type="button" onClick={() => void loadUsers()} className="secondary-button">
           <RefreshCcw className="mr-2 h-4 w-4" />
@@ -208,9 +207,11 @@ const UsersManager: React.FC = () => {
                         </span>
                       </div>
                       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{record.email}</p>
-                      <p className="mt-2 break-all rounded-2xl bg-white px-4 py-3 text-xs leading-6 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
-                        Stored password hash: <span className="font-semibold">{record.passwordHash}</span>
-                      </p>
+                      {record.createdAt && (
+                        <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                          Joined {new Date(record.createdAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -286,10 +287,6 @@ const UsersManager: React.FC = () => {
               Send email
             </button>
           </form>
-
-          <div className="mt-6 rounded-[24px] bg-white p-4 text-sm leading-7 text-slate-600 dark:bg-slate-900 dark:text-slate-400">
-            For security, the admin can inspect stored password hashes only. Original user passwords are never stored in readable form.
-          </div>
           </div>
         </section>
       </div>

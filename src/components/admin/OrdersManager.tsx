@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, PackageCheck, RefreshCcw, Trash2 } from 'lucide-react';
-import { apiRequest } from '../../lib/api';
+import { apiRequest, apiRequestWithRetry } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -23,6 +23,7 @@ interface OrderRecord {
   total: number;
   currency: 'NGN' | 'USD';
   createdAt: string;
+  completedAt?: string | null;
   status: string;
 }
 
@@ -56,8 +57,19 @@ const normalizeOrderStatus = (status: string) => status.trim().toLowerCase();
 
 const getOrderPriority = (status: string) => (normalizeOrderStatus(status) === 'completed' ? 1 : 0);
 
+const dedupeOrders = (orders: OrderRecord[]) => {
+  const orderMap = new Map<string, OrderRecord>();
+
+  orders.forEach((order) => {
+    const key = order.id ?? `${order.userId}-${order.createdAt}`;
+    orderMap.set(key, order);
+  });
+
+  return Array.from(orderMap.values());
+};
+
 const sortOrdersForAdmin = (orders: OrderRecord[]) =>
-  [...orders].sort((left, right) => {
+  dedupeOrders(orders).sort((left, right) => {
     const priorityDifference = getOrderPriority(left.status) - getOrderPriority(right.status);
     if (priorityDifference !== 0) {
       return priorityDifference;
@@ -77,7 +89,7 @@ const OrdersManager: React.FC = () => {
   const [pendingDeleteOrderId, setPendingDeleteOrderId] = useState<string | null>(null);
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
 
-  const loadOrders = async (cursor?: string, replace = false) => {
+  const loadOrders = useCallback(async (cursor?: string, replace = false) => {
     if (!token) {
       return;
     }
@@ -90,7 +102,7 @@ const OrdersManager: React.FC = () => {
         params.set('cursor', cursor);
       }
 
-      const payload = await apiRequest<OrderPageResponse>(`/admin/orders?${params.toString()}`, {
+      const payload = await apiRequestWithRetry<OrderPageResponse>(`/admin/orders?${params.toString()}`, {
         token,
       });
       setNextCursor(payload.nextCursor);
@@ -104,11 +116,29 @@ const OrdersManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     void loadOrders(undefined, true);
-  }, [token]);
+  }, [loadOrders]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    const refreshOrders = () => {
+      void loadOrders(undefined, true);
+    };
+
+    const intervalId = window.setInterval(refreshOrders, 15000);
+    window.addEventListener('focus', refreshOrders);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOrders);
+    };
+  }, [loadOrders, token]);
 
   useEffect(() => {
     setVisibleOrderCount(3);
@@ -120,12 +150,22 @@ const OrdersManager: React.FC = () => {
     }
 
     try {
+      setOrders((current) =>
+        sortOrdersForAdmin(
+          current.map((order) =>
+            order.id === orderId
+              ? { ...order, status: 'completed', completedAt: new Date().toISOString() }
+              : order
+          )
+        )
+      );
       await apiRequest<{ message: string }>(`/admin/orders/${orderId}/complete`, {
         method: 'PUT',
         token,
       });
       await loadOrders(undefined, true);
     } catch (requestError) {
+      await loadOrders(undefined, true);
       setError(requestError instanceof Error ? requestError.message : 'Unable to update order status.');
     }
   };
@@ -149,6 +189,7 @@ const OrdersManager: React.FC = () => {
         method: 'DELETE',
         token,
       });
+      setOrders((current) => current.filter((order) => order.id !== pendingDeleteOrderId));
       setPendingDeleteOrderId(null);
       await loadOrders(undefined, true);
     } catch (requestError) {
@@ -190,6 +231,11 @@ const OrdersManager: React.FC = () => {
                   <h4 className="mt-2 text-xl font-bold text-slate-950 dark:text-slate-50">{order.userName || 'Customer order'}</h4>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{order.userEmail || order.userId}</p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{new Date(order.createdAt).toLocaleString()}</p>
+                  {normalizeOrderStatus(order.status) === 'completed' && order.completedAt && (
+                    <p className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">
+                      Completed {new Date(order.completedAt).toLocaleString()}
+                    </p>
+                  )}
                   {order.itemNames.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {order.itemNames.map((itemName) => (

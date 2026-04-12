@@ -1,4 +1,29 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api';
+const isLoopbackHost = (value: string) => value === '127.0.0.1' || value === 'localhost';
+
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api';
+
+  if (typeof window === 'undefined') {
+    return configuredBaseUrl;
+  }
+
+  try {
+    const resolvedUrl = new URL(configuredBaseUrl);
+    const currentHost = window.location.hostname;
+
+    if (isLoopbackHost(resolvedUrl.hostname) && isLoopbackHost(currentHost) && resolvedUrl.hostname !== currentHost) {
+      resolvedUrl.hostname = currentHost;
+      return resolvedUrl.toString().replace(/\/$/, '');
+    }
+  } catch {
+    return configuredBaseUrl;
+  }
+
+  return configuredBaseUrl;
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
+export const SESSION_TOKEN_SENTINEL = '__cookie_session__';
 
 type RequestOptions = RequestInit & {
   token?: string | null;
@@ -18,7 +43,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const requestHeaders = new Headers(headers);
   const hasBody = rest.body !== undefined && rest.body !== null;
 
-  if (token) {
+  if (token && token !== SESSION_TOKEN_SENTINEL) {
     requestHeaders.set('Authorization', `Bearer ${token}`);
   }
 
@@ -28,6 +53,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
+    cache: rest.cache ?? 'no-store',
+    credentials: rest.credentials ?? 'include',
     headers: requestHeaders,
   });
 
@@ -37,6 +64,37 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return response.json() as Promise<T>;
+}
+
+const wait = (delayMs: number) =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, delayMs);
+  });
+
+const shouldRetryApiRequest = (error: unknown) =>
+  error instanceof ApiError
+    ? error.status >= 500 || error.status === 408 || error.status === 429
+    : true;
+
+export async function apiRequestWithRetry<T>(
+  path: string,
+  options: RequestOptions = {},
+  retries = 2,
+  delayMs = 450
+): Promise<T> {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await apiRequest<T>(path, options);
+    } catch (error) {
+      if (attempt >= retries || !shouldRetryApiRequest(error)) {
+        throw error;
+      }
+      attempt += 1;
+      await wait(delayMs * attempt);
+    }
+  }
 }
 
 export { API_BASE_URL };
