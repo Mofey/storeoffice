@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, PackageCheck, RefreshCcw, Trash2 } from 'lucide-react';
+import { CheckCircle2, PackageCheck, RefreshCcw, Search } from 'lucide-react';
 import { apiRequest, apiRequestWithRetry } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
-import ConfirmDialog from './ConfirmDialog';
 
 interface OrderLineItem {
   productId: number;
@@ -25,6 +24,7 @@ interface OrderRecord {
   createdAt: string;
   completedAt?: string | null;
   status: string;
+  paymentReference?: string | null;
 }
 
 interface OrderPageResponse {
@@ -86,10 +86,10 @@ const OrdersManager: React.FC = () => {
   const [visibleOrderCount, setVisibleOrderCount] = useState(3);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
-  const [pendingDeleteOrderId, setPendingDeleteOrderId] = useState<string | null>(null);
-  const [isDeletingOrder, setIsDeletingOrder] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const loadOrders = useCallback(async (cursor?: string, replace = false) => {
+  const loadOrders = useCallback(async (cursor?: string, replace = false, activeSearch = searchQuery) => {
     if (!token) {
       return;
     }
@@ -100,6 +100,9 @@ const OrdersManager: React.FC = () => {
       const params = new URLSearchParams({ limit: '20' });
       if (cursor) {
         params.set('cursor', cursor);
+      }
+      if (activeSearch.trim()) {
+        params.set('search', activeSearch.trim());
       }
 
       const payload = await apiRequestWithRetry<OrderPageResponse>(`/admin/orders?${params.toString()}`, {
@@ -116,11 +119,21 @@ const OrdersManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [searchQuery, token]);
 
   useEffect(() => {
-    void loadOrders(undefined, true);
-  }, [loadOrders]);
+    const timeoutId = window.setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchInput]);
+
+  useEffect(() => {
+    void loadOrders(undefined, true, searchQuery);
+  }, [loadOrders, searchQuery]);
 
   useEffect(() => {
     if (!token) {
@@ -128,7 +141,7 @@ const OrdersManager: React.FC = () => {
     }
 
     const refreshOrders = () => {
-      void loadOrders(undefined, true);
+      void loadOrders(undefined, true, searchQuery);
     };
 
     const intervalId = window.setInterval(refreshOrders, 15000);
@@ -138,7 +151,7 @@ const OrdersManager: React.FC = () => {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshOrders);
     };
-  }, [loadOrders, token]);
+  }, [loadOrders, searchQuery, token]);
 
   useEffect(() => {
     setVisibleOrderCount(3);
@@ -163,39 +176,10 @@ const OrdersManager: React.FC = () => {
         method: 'PUT',
         token,
       });
-      await loadOrders(undefined, true);
+      await loadOrders(undefined, true, searchQuery);
     } catch (requestError) {
-      await loadOrders(undefined, true);
+      await loadOrders(undefined, true, searchQuery);
       setError(requestError instanceof Error ? requestError.message : 'Unable to update order status.');
-    }
-  };
-
-  const handleDeleteOrder = (orderId?: string) => {
-    if (!orderId) {
-      return;
-    }
-
-    setPendingDeleteOrderId(orderId);
-  };
-
-  const confirmDeleteOrder = async () => {
-    if (!token || !pendingDeleteOrderId) {
-      return;
-    }
-
-    setIsDeletingOrder(true);
-    try {
-      await apiRequest<{ message: string }>(`/admin/orders/${pendingDeleteOrderId}`, {
-        method: 'DELETE',
-        token,
-      });
-      setOrders((current) => current.filter((order) => order.id !== pendingDeleteOrderId));
-      setPendingDeleteOrderId(null);
-      await loadOrders(undefined, true);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to delete order.');
-    } finally {
-      setIsDeletingOrder(false);
     }
   };
 
@@ -206,10 +190,22 @@ const OrdersManager: React.FC = () => {
           <h3 className="text-2xl font-bold text-slate-950 dark:text-slate-50">Orders</h3>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Track checkout activity and mark completed shipments from one place.</p>
         </div>
-        <button type="button" onClick={() => void loadOrders(undefined, true)} className="secondary-button">
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[280px] flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search by reference, customer, or product"
+              className="w-full rounded-full border border-white/60 bg-white/85 py-3 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-cyan-400 dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-100"
+            />
+          </div>
+          <button type="button" onClick={() => void loadOrders(undefined, true, searchQuery)} className="secondary-button">
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -219,7 +215,9 @@ const OrdersManager: React.FC = () => {
       ) : orders.length === 0 ? (
         <div className="glass-panel rounded-[28px] p-10 text-center">
           <PackageCheck className="mx-auto h-12 w-12 text-slate-400" />
-          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">No orders have been placed yet.</p>
+          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+            {searchQuery ? 'No orders match that search yet.' : 'No orders have been placed yet.'}
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -230,6 +228,9 @@ const OrdersManager: React.FC = () => {
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Order</p>
                   <h4 className="mt-2 text-xl font-bold text-slate-950 dark:text-slate-50">{order.userName || 'Customer order'}</h4>
                   <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{order.userEmail || order.userId}</p>
+                  {order.paymentReference && (
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Ref: {order.paymentReference}</p>
+                  )}
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{new Date(order.createdAt).toLocaleString()}</p>
                   {normalizeOrderStatus(order.status) === 'completed' && order.completedAt && (
                     <p className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">
@@ -255,12 +256,6 @@ const OrdersManager: React.FC = () => {
                     <button type="button" onClick={() => void handleCompleteOrder(order.id)} className="primary-button">
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Mark completed
-                    </button>
-                  )}
-                  {normalizeOrderStatus(order.status) === 'completed' && (
-                    <button type="button" onClick={() => void handleDeleteOrder(order.id)} className="secondary-button text-rose-600 hover:text-rose-700 dark:text-rose-300">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete order
                     </button>
                   )}
                 </div>
@@ -294,7 +289,7 @@ const OrdersManager: React.FC = () => {
             <div className="flex justify-center">
               <button
                 type="button"
-                onClick={() => void loadOrders(nextCursor ?? undefined)}
+                onClick={() => void loadOrders(nextCursor ?? undefined, false, searchQuery)}
                 className="secondary-button mt-4"
                 disabled={!nextCursor}
               >
@@ -313,19 +308,6 @@ const OrdersManager: React.FC = () => {
           )}
         </div>
       )}
-      <ConfirmDialog
-        isOpen={Boolean(pendingDeleteOrderId)}
-        title="Delete completed order?"
-        description="This completed order will be removed from the admin record list. This action cannot be undone."
-        confirmLabel="Delete order"
-        isProcessing={isDeletingOrder}
-        onClose={() => {
-          if (!isDeletingOrder) {
-            setPendingDeleteOrderId(null);
-          }
-        }}
-        onConfirm={confirmDeleteOrder}
-      />
     </div>
   );
 };
