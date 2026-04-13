@@ -56,6 +56,7 @@ const getAmountTextClassName = (amount: number, currency: 'NGN' | 'USD') => {
 const normalizeOrderStatus = (status: string) => status.trim().toLowerCase();
 
 const getOrderPriority = (status: string) => (normalizeOrderStatus(status) === 'completed' ? 1 : 0);
+const canMarkOrderCompleted = (status: string) => ['processing', 'inventory_review'].includes(normalizeOrderStatus(status));
 
 const dedupeOrders = (orders: OrderRecord[]) => {
   const orderMap = new Map<string, OrderRecord>();
@@ -134,24 +135,6 @@ const OrdersManager: React.FC = () => {
   useEffect(() => {
     void loadOrders(undefined, true, searchQuery);
   }, [loadOrders, searchQuery]);
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-
-    const refreshOrders = () => {
-      void loadOrders(undefined, true, searchQuery);
-    };
-
-    const intervalId = window.setInterval(refreshOrders, 15000);
-    window.addEventListener('focus', refreshOrders);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener('focus', refreshOrders);
-    };
-  }, [loadOrders, searchQuery, token]);
 
   useEffect(() => {
     setVisibleOrderCount(3);
@@ -252,7 +235,7 @@ const OrdersManager: React.FC = () => {
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${normalizeOrderStatus(order.status) === 'completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/35 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/35 dark:text-amber-300'}`}>
                     {order.status}
                   </span>
-                  {normalizeOrderStatus(order.status) !== 'completed' && (
+                  {canMarkOrderCompleted(order.status) && (
                     <button type="button" onClick={() => void handleCompleteOrder(order.id)} className="primary-button">
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Mark completed
